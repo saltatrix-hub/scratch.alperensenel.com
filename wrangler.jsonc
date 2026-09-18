@@ -16,8 +16,5 @@
     "enabled": true,
     "logs": { "head_sampling_rate": 1 },
     "traces": { "enabled": true, "head_sampling_rate": 0.1 }
-  },
-  "routes": [
-    { "pattern": "scratch.alperensenel.com", "custom_domain": true }
-  ]
+  }
 }

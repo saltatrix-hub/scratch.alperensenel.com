@@ -4,5 +4,4 @@ dist
 .dev.vars
 worker-configuration.d.ts
 *.tsbuildinfo
-wrangler.preview.jsonc
 *.log
