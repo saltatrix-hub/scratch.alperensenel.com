@@ -92,6 +92,11 @@ export default function App() {
         addFeed(`${message.name} doğru bildi! +1`, "correct");
         setCelebrate((value) => value + 1);
         if (!muted) sounds.correct();
+      } else if (message.type === "stroke") {
+        const stroke = message.stroke as unknown as Stroke;
+        setState((current) => current ? { ...current, strokes: [...current.strokes, stroke] } : current);
+      } else if (message.type === "clear") {
+        setState((current) => current ? { ...current, strokes: [] } : current);
       } else if (message.type === "toast") {
         addFeed(String(message.message), "info");
       } else if (message.type === "round") {

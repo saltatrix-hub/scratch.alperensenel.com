@@ -39,10 +39,20 @@ await waitFor(guest, "welcome");
 const wordPromise = waitFor(host, "word");
 host.send(JSON.stringify({ type: "start" }));
 const { word } = await wordPromise;
+const hostStrokePromise = waitFor(host, "stroke");
+const guestStrokePromise = waitFor(guest, "stroke");
+host.send(JSON.stringify({
+  type: "stroke",
+  color: "#17152b",
+  size: 9,
+  tool: "pen",
+  points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }],
+}));
+await Promise.all([hostStrokePromise, guestStrokePromise]);
 const correctPromise = waitFor(guest, "correct");
 guest.send(JSON.stringify({ type: "guess", text: word }));
 await correctPromise;
 
 host.close(1000);
 guest.close(1000);
-console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, scoringFlow: true }));
+console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, drawingSync: true, scoringFlow: true }));

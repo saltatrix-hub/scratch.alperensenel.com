@@ -365,7 +365,7 @@ export class GameRoom extends DurableObject<Env> {
     this.state.strokes.push(stroke);
     if (this.state.strokes.length > 2_000) this.state.strokes = this.state.strokes.slice(-1_500);
     this.persist();
-    this.broadcast({ type: "stroke", stroke }, player.id);
+    this.broadcast({ type: "stroke", stroke });
   }
 
   private handleGuess(socket: WebSocket, player: Player, rawText: unknown): void {
