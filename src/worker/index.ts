@@ -262,6 +262,9 @@ export class GameRoom extends DurableObject<Env> {
       case "restart":
         if (player.isHost && this.state.phase === "finished") this.restartGame();
         break;
+      case "leave":
+        this.leaveRoom(socket, player);
+        break;
     }
   }
 
@@ -450,6 +453,48 @@ export class GameRoom extends DurableObject<Env> {
     this.state.winner = null;
     this.persist();
     this.broadcastState();
+  }
+
+  private leaveRoom(socket: WebSocket, player: Player): void {
+    if (!this.state) return;
+    const leavingIndex = this.state.players.findIndex((candidate) => candidate.id === player.id);
+    if (leavingIndex < 0) return;
+    const wasDrawer = this.currentDrawer()?.id === player.id;
+    const wasDrawing = this.state.phase === "drawing";
+    const name = player.name;
+    this.state.players.splice(leavingIndex, 1);
+
+    if (this.state.players.length === 0) {
+      this.state.phase = "lobby";
+      this.state.drawerIndex = -1;
+      this.state.endsAt = null;
+      this.state.strokes = [];
+      this.persist();
+      void this.ctx.storage.deleteAlarm();
+      socket.close(1000, "Odadan ayrıldın.");
+      return;
+    }
+
+    if (player.isHost) this.state.players[0].isHost = true;
+    if (leavingIndex < this.state.drawerIndex) this.state.drawerIndex -= 1;
+
+    if (this.state.players.length < 2 && this.state.phase !== "lobby") {
+      this.state.phase = "lobby";
+      this.state.drawerIndex = -1;
+      this.state.endsAt = null;
+      this.state.strokes = [];
+      this.state.revealedWord = null;
+      void this.ctx.storage.deleteAlarm();
+    } else if (wasDrawer && wasDrawing) {
+      this.state.drawerIndex = (leavingIndex - 1 + this.state.players.length) % this.state.players.length;
+      this.persist();
+      this.finishRound("Çizen oyuncu odadan ayrıldı.");
+    }
+
+    this.persist();
+    this.broadcast({ type: "toast", tone: "info", message: `${name} odadan ayrıldı.` });
+    this.broadcastState();
+    socket.close(1000, "Odadan ayrıldın.");
   }
 
   private socketFor(playerId: string | undefined): WebSocket | undefined {

@@ -53,6 +53,20 @@ const correctPromise = waitFor(guest, "correct");
 guest.send(JSON.stringify({ type: "guess", text: word }));
 await correctPromise;
 
+const leavePromise = new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error("Timed out waiting for leave state")), 8_000);
+  const listener = (event) => {
+    const message = JSON.parse(event.data);
+    if (message.type !== "state" || message.state.players.length !== 1) return;
+    clearTimeout(timer);
+    host.removeEventListener("message", listener);
+    resolve(message);
+  };
+  host.addEventListener("message", listener);
+});
+guest.send(JSON.stringify({ type: "leave" }));
+await leavePromise;
+
 host.close(1000);
 guest.close(1000);
-console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, drawingSync: true, scoringFlow: true }));
+console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, drawingSync: true, scoringFlow: true, leaveFlow: true }));

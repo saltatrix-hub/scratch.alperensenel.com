@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Brush, Check, Clock3, Copy, Crown, Eraser, LogIn, Paintbrush, Play, RotateCcw, Sparkles, Users, Volume2, VolumeX, X } from "lucide-react";
+import { Brush, Check, Clock3, Copy, Crown, Eraser, LogIn, LogOut, Paintbrush, Play, RotateCcw, Sparkles, Users, Volume2, VolumeX, X } from "lucide-react";
 import type { FeedItem, GameState, Mode, Stroke, StrokePoint } from "./types";
 
 const PALETTE = ["#17152b", "#7357f6", "#ff5f8f", "#15cbb9", "#ffbd3d", "#2f8cff"];
@@ -158,6 +158,24 @@ export default function App() {
     }
   };
 
+  const leaveRoom = useCallback(() => {
+    const code = state?.code || roomCode;
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: "leave" }));
+      socketRef.current.close(1000, "Odadan ayrıldım.");
+    }
+    socketRef.current = null;
+    if (code) localStorage.removeItem(sessionKey(code));
+    setState(null);
+    setPlayerId("");
+    setWord("");
+    setFeed([]);
+    setRoomCode("");
+    setError("");
+    setScreen("home");
+    history.replaceState(null, "", location.pathname);
+  }, [roomCode, state?.code]);
+
   if (screen === "home") {
     return <Home
       name={name} setName={setName} roomCode={roomCode} setRoomCode={setRoomCode}
@@ -172,6 +190,7 @@ export default function App() {
   return <Game
     state={state} playerId={playerId} word={word} feed={feed} socket={socketRef.current}
     remaining={remaining} muted={muted} setMuted={setMuted} celebrate={celebrate}
+    onLeave={leaveRoom}
   />;
 }
 
@@ -218,9 +237,9 @@ function OptionRow({ label, values, value, onChange, suffix }: { label: string; 
 function Brand() { return <div className="brand"><span className="brand-mark"><Brush size={20}/></span><b>SCRATCH!</b></div>; }
 function Loading() { return <div className="loading"><Brand/><span className="spinner"/>Oda hazırlanıyor…</div>; }
 
-function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted, celebrate }: {
+function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted, celebrate, onLeave }: {
   state: GameState; playerId: string; word: string; feed: FeedItem[]; socket: WebSocket | null;
-  remaining: number; muted: boolean; setMuted: (value: boolean) => void; celebrate: number;
+  remaining: number; muted: boolean; setMuted: (value: boolean) => void; celebrate: number; onLeave: () => void;
 }) {
   const me = state.players.find((player) => player.id === playerId);
   const drawer = state.players.find((player) => player.id === state.drawerId);
@@ -235,7 +254,7 @@ function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted,
     <header className="game-header">
       <Brand />
       <div className="room-code"><small>ODA KODU</small><button onClick={copyRoom}>{state.code}<Copy size={15}/></button></div>
-      <div className="header-actions"><span className="round-label">TUR {Math.max(1,state.round)}</span><button className="icon-button" aria-label={muted ? "Sesi aç" : "Sesi kapat"} onClick={() => setMuted(!muted)}>{muted ? <VolumeX/> : <Volume2/>}</button></div>
+      <div className="header-actions"><span className="round-label">TUR {Math.max(1,state.round)}</span><button className="icon-button" aria-label={muted ? "Sesi aç" : "Sesi kapat"} onClick={() => setMuted(!muted)}>{muted ? <VolumeX/> : <Volume2/>}</button><button className="leave-button" onClick={onLeave}><LogOut size={16}/><span>Odadan çık</span></button></div>
     </header>
     <div className="game-layout">
       <aside className="players-panel">
