@@ -65,7 +65,12 @@ const COLORS = new Set(["#17152b", "#7357f6", "#ff5f8f", "#15cbb9", "#ffbd3d", "
 const SIZES = new Set([4, 9, 18]);
 
 function json(data: unknown, status = 200): Response {
-  return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
+  return Response.json(data, { status, headers: {
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "https://scratch.alperensenel.com",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  } });
 }
 
 function roomCode(): string {
@@ -457,6 +462,14 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     try {
+      if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+        return new Response(null, { status: 204, headers: {
+          "Access-Control-Allow-Origin": "https://scratch.alperensenel.com",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Max-Age": "86400",
+        } });
+      }
       if (url.pathname === "/api/rooms" && request.method === "POST") {
         const body: unknown = await request.json();
         const candidate = body && typeof body === "object" ? body as Record<string, unknown> : {};

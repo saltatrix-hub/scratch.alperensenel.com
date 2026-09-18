@@ -4,6 +4,7 @@ import type { FeedItem, GameState, Mode, Stroke, StrokePoint } from "./types";
 
 const PALETTE = ["#17152b", "#7357f6", "#ff5f8f", "#15cbb9", "#ffbd3d", "#2f8cff"];
 const SIZES = [{ value: 4, label: "İnce" }, { value: 9, label: "Orta" }, { value: 18, label: "Kalın" }];
+const API_BASE = (import.meta.env.VITE_API_BASE || location.origin).replace(/\/$/, "");
 
 function sessionKey(code: string) { return `scratch-session-${code}`; }
 
@@ -61,13 +62,13 @@ export default function App() {
     setError("");
     localStorage.setItem("scratch-name", playerName.trim());
     const saved = JSON.parse(localStorage.getItem(sessionKey(code)) ?? "{}") as { playerId?: string; token?: string };
-    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    const socketBase = API_BASE.replace(/^http/, "ws");
     const query = new URLSearchParams({ name: playerName.trim() });
     if (saved.playerId && saved.token) {
       query.set("player", saved.playerId);
       query.set("token", saved.token);
     }
-    const ws = new WebSocket(`${protocol}://${location.host}/api/rooms/${code}/socket?${query}`);
+    const ws = new WebSocket(`${socketBase}/api/rooms/${code}/socket?${query}`);
     socketRef.current = ws;
     ws.onopen = () => {
       setScreen("game");
@@ -138,7 +139,7 @@ export default function App() {
     setConnecting(true);
     setError("");
     try {
-      const response = await fetch("/api/rooms", {
+      const response = await fetch(`${API_BASE}/api/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode, targetScore, roundSeconds }),
