@@ -65,9 +65,17 @@ host.send(JSON.stringify({
 await Promise.all([hostStrokePromise, guestStrokePromise]);
 const correctPromise = waitFor(guest, "correct");
 const roundEndPromise = waitForState(host, (state) => state.phase === "reveal", "immediate round end");
+const postGuessStates = [];
+const stateListener = (event) => {
+  const message = JSON.parse(event.data);
+  if (message.type === "state" && message.state.players.some((player) => player.guessed)) postGuessStates.push(message.state);
+};
+host.addEventListener("message", stateListener);
 guest.send(JSON.stringify({ type: "guess", text: word }));
 const [, roundEndState] = await Promise.all([correctPromise, roundEndPromise]);
+host.removeEventListener("message", stateListener);
 if (roundEndState.endsAt - Date.now() > 3_000) throw new Error("Round did not end promptly after every guesser answered");
+if (postGuessStates.some((state) => state.phase === "drawing")) throw new Error("Server emitted a stale drawing state after the final correct guess");
 
 const leavePromise = waitForState(host, (state) => state.players.length === 1, "leave state");
 guest.send(JSON.stringify({ type: "leave" }));

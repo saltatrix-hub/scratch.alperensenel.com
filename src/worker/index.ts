@@ -400,12 +400,16 @@ export class GameRoom extends DurableObject<Env> {
     player.score += 1;
     const drawer = this.currentDrawer();
     if (drawer) drawer.score += 1;
-    this.persist();
     this.broadcast({ type: "correct", playerId: player.id, name: player.name });
-    this.broadcastState();
 
     const eligible = this.state.players.filter((candidate) => candidate.id !== drawer?.id && candidate.connected);
-    if (eligible.length > 0 && eligible.every((candidate) => candidate.guessed)) this.finishRound("Herkes bildi!");
+    if (eligible.length > 0 && eligible.every((candidate) => candidate.guessed)) {
+      this.finishRound("Herkes bildi!");
+      return;
+    }
+
+    this.persist();
+    this.broadcastState();
   }
 
   private getWinner(): WinnerResult | null {
