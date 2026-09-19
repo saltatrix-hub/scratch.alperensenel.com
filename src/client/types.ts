@@ -29,6 +29,7 @@ export interface GameState {
   endsAt: number | null;
   revealedWord: string | null;
   winner: string | null;
+  winnerScore: number | null;
   teamScores: { A: number; B: number };
   strokes: Stroke[];
 }

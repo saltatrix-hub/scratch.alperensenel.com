@@ -29,6 +29,20 @@ function waitFor(ws, type, timeout = 8_000) {
   });
 }
 
+function waitForState(ws, predicate, label, timeout = 8_000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), timeout);
+    const listener = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type !== "state" || !predicate(message.state)) return;
+      clearTimeout(timer);
+      ws.removeEventListener("message", listener);
+      resolve(message.state);
+    };
+    ws.addEventListener("message", listener);
+  });
+}
+
 const host = socket("Kalem");
 await new Promise((resolve, reject) => { host.onopen = resolve; host.onerror = reject; });
 await waitFor(host, "welcome");
@@ -50,23 +64,15 @@ host.send(JSON.stringify({
 }));
 await Promise.all([hostStrokePromise, guestStrokePromise]);
 const correctPromise = waitFor(guest, "correct");
+const roundEndPromise = waitForState(host, (state) => state.phase === "reveal", "immediate round end");
 guest.send(JSON.stringify({ type: "guess", text: word }));
-await correctPromise;
+const [, roundEndState] = await Promise.all([correctPromise, roundEndPromise]);
+if (roundEndState.endsAt - Date.now() > 3_000) throw new Error("Round did not end promptly after every guesser answered");
 
-const leavePromise = new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error("Timed out waiting for leave state")), 8_000);
-  const listener = (event) => {
-    const message = JSON.parse(event.data);
-    if (message.type !== "state" || message.state.players.length !== 1) return;
-    clearTimeout(timer);
-    host.removeEventListener("message", listener);
-    resolve(message);
-  };
-  host.addEventListener("message", listener);
-});
+const leavePromise = waitForState(host, (state) => state.players.length === 1, "leave state");
 guest.send(JSON.stringify({ type: "leave" }));
 await leavePromise;
 
 host.close(1000);
 guest.close(1000);
-console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, drawingSync: true, scoringFlow: true, leaveFlow: true }));
+console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, drawingSync: true, scoringFlow: true, allGuessersEndRound: true, leaveFlow: true }));

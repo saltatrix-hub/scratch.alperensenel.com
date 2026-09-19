@@ -122,7 +122,7 @@ export default function App() {
   useEffect(() => () => socketRef.current?.close(1000), []);
 
   useEffect(() => {
-    if (!state?.endsAt || (state.phase !== "drawing" && state.phase !== "reveal")) {
+    if (!state?.endsAt || state.phase !== "drawing") {
       setRemaining(0);
       return;
     }
@@ -260,11 +260,12 @@ function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted,
       <aside className="players-panel">
         <div className="panel-head"><span>Oyuncular</span><small>{state.players.length}/10</small></div>
         {state.settings.mode === "team" && <div className="team-score"><span><i className="team-a"/>Mor <b>{state.teamScores.A}</b></span><span><i className="team-b"/>Mint <b>{state.teamScores.B}</b></span></div>}
-        <div className="player-list">{[...state.players].sort((a,b) => b.score-a.score).map((player, index) => <div className={`player-item ${player.id === state.drawerId ? "drawing" : ""} ${!player.connected ? "offline" : ""}`} key={player.id}>
+        <div className="player-list">{[...state.players].sort((a,b) => b.score-a.score || a.name.localeCompare(b.name, "tr")).map((player, index) => <div className={`player-item ${player.id === state.drawerId ? "drawing" : ""} ${!player.connected ? "offline" : ""}`} key={player.id}>
+          <span className={`rank-number ${index === 0 ? "leader" : ""}`}>{index + 1}</span>
           <span className={`avatar team-${player.team.toLowerCase()}`}>{player.name.charAt(0).toLocaleUpperCase("tr-TR")}</span>
           <span className="player-name">{player.name}{player.id === playerId && <small>sen</small>}{player.isHost && <Crown size={12}/>}</span>
-          {player.id === state.drawerId ? <Brush className="drawing-icon" size={17}/> : player.guessed ? <Check className="check-icon" size={17}/> : <b>{player.score}</b>}
-          {index === 0 && state.phase !== "lobby" && <span className="leader-dot"/>}
+          <b className="player-score">{player.score}</b>
+          <span className="player-status">{player.id === state.drawerId ? <Brush className="drawing-icon" size={17}/> : player.guessed ? <Check className="check-icon" size={17}/> : null}</span>
         </div>)}</div>
         {state.phase === "lobby" && state.settings.mode === "team" && <div className="team-switch"><span>Takımın</span><button className={me?.team === "A" ? "active a" : ""} onClick={() => send({type:"team",team:"A"})}>Mor</button><button className={me?.team === "B" ? "active b" : ""} onClick={() => send({type:"team",team:"B"})}>Mint</button></div>}
       </aside>
@@ -272,11 +273,11 @@ function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted,
       <section className="board-column">
         <div className={`round-banner ${remaining <= 10 && state.phase === "drawing" ? "danger" : ""}`}>
           <div>{state.phase === "lobby" ? <><small>HAZIRLIK</small><strong>Herkes gelince başlat</strong></> : state.phase === "finished" ? <><small>OYUN BİTTİ</small><strong>{state.winner} kazandı!</strong></> : isDrawer ? <><small>ÇİZECEĞİN KELİME</small><strong>{word || "Hazırlan…"}</strong></> : <><small>{drawer?.name?.toLocaleUpperCase("tr-TR")} ÇİZİYOR</small><strong>{state.phase === "reveal" ? state.revealedWord : `${wordHint(state, word)}`}</strong></>}</div>
-          {state.phase !== "lobby" && state.phase !== "finished" && <div className="timer"><Clock3 size={20}/><b>{remaining}</b><small>sn</small></div>}
+          {state.phase === "drawing" ? <div className="timer"><Clock3 size={20}/><b>{remaining}</b><small>sn</small></div> : state.phase === "reveal" ? <div className="round-transition">Sıradaki tur hazırlanıyor…</div> : null}
         </div>
         <DrawingBoard state={state} isDrawer={isDrawer} send={send}/>
         {state.phase === "lobby" && <LobbyOverlay state={state} isHost={Boolean(me?.isHost)} send={send}/>} 
-        {state.phase === "finished" && <div className="finish-overlay"><Sparkles size={34}/><h2>{state.winner} kazandı!</h2><p>Çizgiler konuştu, puanlar sahibini buldu.</p>{me?.isHost ? <button className="primary-button" onClick={() => send({type:"restart"})}><RotateCcw size={18}/> Yeniden oyna</button> : <span>Ev sahibi yeni oyunu başlatabilir.</span>}</div>}
+        {state.phase === "finished" && <div className="finish-overlay"><Sparkles size={38}/><small className="winner-kicker">{state.settings.mode === "team" ? "KAZANAN TAKIM" : "KAZANAN OYUNCU"}</small><h2>Tebrikler, {state.winner}!</h2><div className="winner-score"><span>SKOR</span><b>{state.winnerScore ?? 0}</b></div><p>Çizgiler konuştu, puanlar sahibini buldu.</p>{me?.isHost ? <button className="primary-button" onClick={() => send({type:"restart"})}><RotateCcw size={18}/> Yeniden oyna</button> : <span>Ev sahibi yeni oyunu başlatabilir.</span>}</div>}
       </section>
 
       <aside className="chat-panel">

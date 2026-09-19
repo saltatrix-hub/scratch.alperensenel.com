@@ -47,7 +47,13 @@ interface RoomState {
   endsAt: number | null;
   revealedWord: string | null;
   winner: string | null;
+  winnerScore: number | null;
   createdAt: number;
+}
+
+interface WinnerResult {
+  name: string;
+  score: number;
 }
 
 interface SocketAttachment { playerId: string }
@@ -117,6 +123,7 @@ function publicState(state: RoomState) {
     endsAt: state.endsAt,
     revealedWord: state.revealedWord,
     winner: state.winner,
+    winnerScore: state.winnerScore ?? null,
     teamScores,
     strokes: state.strokes,
   };
@@ -157,6 +164,7 @@ export class GameRoom extends DurableObject<Env> {
       endsAt: null,
       revealedWord: null,
       winner: null,
+      winnerScore: null,
       createdAt: Date.now(),
     };
     this.persist();
@@ -339,6 +347,7 @@ export class GameRoom extends DurableObject<Env> {
     this.state.strokes = [];
     this.state.revealedWord = null;
     this.state.winner = null;
+    this.state.winnerScore = null;
     this.state.endsAt = Date.now() + this.state.settings.roundSeconds * 1000;
     for (const player of this.state.players) player.guessed = false;
     this.persist();
@@ -395,43 +404,50 @@ export class GameRoom extends DurableObject<Env> {
     this.broadcast({ type: "correct", playerId: player.id, name: player.name });
     this.broadcastState();
 
-    const winner = this.getWinner();
-    if (winner) {
-      this.state.phase = "finished";
-      this.state.endsAt = null;
-      this.state.revealedWord = this.state.word;
-      this.state.winner = winner;
-      this.persist();
-      void this.ctx.storage.deleteAlarm();
-      this.broadcast({ type: "game-over", winner });
-      this.broadcastState();
-      return;
-    }
-
     const eligible = this.state.players.filter((candidate) => candidate.id !== drawer?.id && candidate.connected);
     if (eligible.length > 0 && eligible.every((candidate) => candidate.guessed)) this.finishRound("Herkes bildi!");
   }
 
-  private getWinner(): string | null {
+  private getWinner(): WinnerResult | null {
     if (!this.state) return null;
     if (this.state.settings.mode === "solo") {
-      const player = this.state.players.find((candidate) => candidate.score >= this.state!.settings.targetScore);
-      return player?.name ?? null;
+      const highestScore = Math.max(...this.state.players.map((player) => player.score));
+      if (highestScore < this.state.settings.targetScore) return null;
+      const leaders = this.state.players.filter((player) => player.score === highestScore);
+      return { name: leaders.map((player) => player.name).join(" & "), score: highestScore };
     }
     const scores = this.state.players.reduce((result, player) => {
       result[player.team] += player.score;
       return result;
     }, { A: 0, B: 0 });
-    if (scores.A >= this.state.settings.targetScore) return "Mor Takım";
-    if (scores.B >= this.state.settings.targetScore) return "Mint Takım";
+    const highestScore = Math.max(scores.A, scores.B);
+    if (highestScore < this.state.settings.targetScore) return null;
+    if (scores.A === scores.B) return { name: "Mor Takım & Mint Takım", score: highestScore };
+    if (scores.A > scores.B) return { name: "Mor Takım", score: scores.A };
+    if (scores.B > scores.A) return { name: "Mint Takım", score: scores.B };
     return null;
   }
 
   private finishRound(message: string): void {
     if (!this.state || this.state.phase !== "drawing") return;
+    const winner = this.getWinner();
+    if (winner) {
+      this.state.phase = "finished";
+      this.state.endsAt = null;
+      this.state.revealedWord = this.state.word;
+      this.state.winner = winner.name;
+      this.state.winnerScore = winner.score;
+      this.persist();
+      void this.ctx.storage.deleteAlarm();
+      this.broadcast({ type: "game-over", winner: winner.name, score: winner.score });
+      this.broadcastState();
+      return;
+    }
     this.state.phase = "reveal";
-    this.state.endsAt = Date.now() + 4_000;
+    this.state.endsAt = Date.now() + 2_200;
     this.state.revealedWord = this.state.word;
+    this.state.winner = null;
+    this.state.winnerScore = null;
     this.persist();
     void this.ctx.storage.setAlarm(this.state.endsAt);
     this.broadcast({ type: "reveal", message, word: this.state.word });
@@ -451,6 +467,7 @@ export class GameRoom extends DurableObject<Env> {
     this.state.endsAt = null;
     this.state.revealedWord = null;
     this.state.winner = null;
+    this.state.winnerScore = null;
     this.persist();
     this.broadcastState();
   }
@@ -484,6 +501,8 @@ export class GameRoom extends DurableObject<Env> {
       this.state.endsAt = null;
       this.state.strokes = [];
       this.state.revealedWord = null;
+      this.state.winner = null;
+      this.state.winnerScore = null;
       void this.ctx.storage.deleteAlarm();
     } else if (wasDrawer && wasDrawing) {
       this.state.drawerIndex = (leavingIndex - 1 + this.state.players.length) % this.state.players.length;
