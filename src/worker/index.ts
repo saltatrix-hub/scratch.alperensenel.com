@@ -402,14 +402,8 @@ export class GameRoom extends DurableObject<Env> {
     if (drawer) drawer.score += 1;
     this.broadcast({ type: "correct", playerId: player.id, name: player.name });
 
-    const eligible = this.state.players.filter((candidate) => candidate.id !== drawer?.id && candidate.connected);
-    if (eligible.length > 0 && eligible.every((candidate) => candidate.guessed)) {
-      this.finishRound("Herkes bildi!");
-      return;
-    }
-
-    this.persist();
-    this.broadcastState();
+    // The first correct guess ends the turn, even when other players have not guessed.
+    this.finishRound("Kelime bulundu!");
   }
 
   private getWinner(): WinnerResult | null {
