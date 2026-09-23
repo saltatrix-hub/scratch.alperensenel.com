@@ -28,6 +28,7 @@ export interface GameState {
   round: number;
   endsAt: number | null;
   revealedWord: string | null;
+  wordHint: string;
   winner: string | null;
   winnerScore: number | null;
   teamScores: { A: number; B: number };

@@ -92,6 +92,8 @@ export default function App() {
         addFeed(`${message.name} doğru bildi! +1`, "correct");
         setCelebrate((value) => value + 1);
         if (!muted) sounds.correct();
+      } else if (message.type === "partial") {
+        addFeed(`${message.name} kelimenin bir parçasını buldu: ${message.word}`, "correct");
       } else if (message.type === "stroke") {
         const stroke = message.stroke as unknown as Stroke;
         setState((current) => current ? { ...current, strokes: [...current.strokes, stroke] } : current);
@@ -292,7 +294,7 @@ function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted,
 function wordHint(state: GameState, word: string) {
   if (state.phase === "reveal") return state.revealedWord || "";
   if (word) return word;
-  return "_ ".repeat(7).trim();
+  return state.wordHint;
 }
 
 function LobbyOverlay({ state, isHost, send }: { state: GameState; isHost: boolean; send: (value: unknown) => void }) {

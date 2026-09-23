@@ -6,6 +6,8 @@
 
 Solo ve takım modunda ilk doğru tahmin turu bitirir. Doğru bilen oyuncu ve çizen oyuncu birer puan kazanır. Hedef puana ulaşılmadıysa kelime 2,2 saniye gösterilir; ardından çizim sırası oyuncu listesindeki sıradaki kişiye geçer. Son oyuncudan sonra sıra başa döner. Yeni turda tahta ve tahmin durumları temizlenir, süre yenilenir ve yeni kelime yalnızca çizen oyuncuya gönderilir. Hedef puana ulaşıldığında sonuç ekranı açılır.
 
+Birden fazla parçadan oluşan cevaplarda bulunan parçalar anında açılır. Örneğin `kamp çadırı` için `kamp` tahmini, ipucunu `kamp ______` olarak günceller. Tek bir parçayı bulmak puan vermez veya turu bitirmez; tam cevap yazıldığında ya da bütün parçalar bulunduğunda normal doğru cevap puanı uygulanır ve tur sona erer.
+
 ## Geliştirme
 
 ```bash

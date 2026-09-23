@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { hiddenWord, normalizeGuess, revealMatchingParts } from "../shared/word-hint";
 
 type Mode = "solo" | "team";
 type Phase = "lobby" | "drawing" | "reveal" | "finished";
@@ -46,6 +47,7 @@ interface RoomState {
   round: number;
   endsAt: number | null;
   revealedWord: string | null;
+  revealedParts: boolean[];
   winner: string | null;
   winnerScore: number | null;
   createdAt: number;
@@ -90,10 +92,6 @@ function cleanName(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 22) : "";
 }
 
-function normalizeGuess(value: string): string {
-  return value.trim().toLocaleLowerCase("tr-TR").replace(/[^a-zçğıöşü0-9 ]/gi, "").replace(/\s+/g, " ");
-}
-
 function publicPlayer(player: Player) {
   return {
     id: player.id,
@@ -122,6 +120,7 @@ function publicState(state: RoomState) {
     round: state.round,
     endsAt: state.endsAt,
     revealedWord: state.revealedWord,
+    wordHint: hiddenWord(state.word, state.revealedParts),
     winner: state.winner,
     winnerScore: state.winnerScore ?? null,
     teamScores,
@@ -145,6 +144,8 @@ export class GameRoom extends DurableObject<Env> {
       const row = this.ctx.storage.sql.exec<{ data: string }>("SELECT data FROM room_state WHERE id = 1").toArray()[0];
       if (row) this.state = JSON.parse(row.data) as RoomState;
       if (this.state) {
+        // Rooms created by older deployments do not have partial-word state yet.
+        this.state.revealedParts ??= [];
         for (const player of this.state.players) player.connected = false;
       }
     });
@@ -163,6 +164,7 @@ export class GameRoom extends DurableObject<Env> {
       round: 0,
       endsAt: null,
       revealedWord: null,
+      revealedParts: [],
       winner: null,
       winnerScore: null,
       createdAt: Date.now(),
@@ -346,6 +348,7 @@ export class GameRoom extends DurableObject<Env> {
     this.state.word = WORDS[crypto.getRandomValues(new Uint32Array(1))[0] % WORDS.length];
     this.state.strokes = [];
     this.state.revealedWord = null;
+    this.state.revealedParts = [];
     this.state.winner = null;
     this.state.winnerScore = null;
     this.state.endsAt = Date.now() + this.state.settings.roundSeconds * 1000;
@@ -392,8 +395,18 @@ export class GameRoom extends DurableObject<Env> {
     }
     player.lastGuessAt = now;
     if (normalizeGuess(text) !== normalizeGuess(this.state.word)) {
-      this.broadcast({ type: "guess", playerId: player.id, name: player.name, text });
-      return;
+      const partial = revealMatchingParts(this.state.word, this.state.revealedParts, text);
+      if (!partial.matched) {
+        this.broadcast({ type: "guess", playerId: player.id, name: player.name, text });
+        return;
+      }
+      this.state.revealedParts = partial.revealedParts;
+      this.broadcast({ type: "partial", playerId: player.id, name: player.name, word: text });
+      if (!partial.complete) {
+        this.persist();
+        this.broadcastState();
+        return;
+      }
     }
 
     player.guessed = true;
@@ -464,6 +477,7 @@ export class GameRoom extends DurableObject<Env> {
     this.state.strokes = [];
     this.state.endsAt = null;
     this.state.revealedWord = null;
+    this.state.revealedParts = [];
     this.state.winner = null;
     this.state.winnerScore = null;
     this.persist();
@@ -499,6 +513,7 @@ export class GameRoom extends DurableObject<Env> {
       this.state.endsAt = null;
       this.state.strokes = [];
       this.state.revealedWord = null;
+      this.state.revealedParts = [];
       this.state.winner = null;
       this.state.winnerScore = null;
       void this.ctx.storage.deleteAlarm();

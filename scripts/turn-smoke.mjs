@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { hiddenWord } from "../src/shared/word-hint.ts";
 
 const base = process.env.SCRATCH_URL?.replace(/\/$/, "");
 if (!base) throw new Error("SCRATCH_URL is required");
@@ -71,6 +72,7 @@ async function smoke(mode, playerCount) {
     host.send({ type: "start" });
     let word = (await host.waitFor((message) => message.type === "word", "first private word", start[0])).word;
     const scores = Array(playerCount).fill(0);
+    let partialChecked = false;
 
     for (let turn = 0; turn < playerCount; turn += 1) {
       const drawerIndex = turn % playerCount;
@@ -82,6 +84,7 @@ async function smoke(mode, playerCount) {
       const drawing = await host.state((state) => state.phase === "drawing" && state.round === turn + 1, "drawing round", 0);
       assert.equal(drawing.drawerId, ids[drawerIndex]);
       assert.equal(drawing.strokes.length, 0, "Every round starts with an empty canvas");
+      assert.equal(drawing.wordHint, hiddenWord(word), "Guessers see a length-preserving hidden phrase");
 
       const beforeStroke = clients.map((client) => client.messages.length);
       const stroke = { type: "stroke", color: "#17152b", size: 9, tool: "pen", points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }] };
@@ -89,6 +92,19 @@ async function smoke(mode, playerCount) {
       await Promise.all(clients.map((client, index) => client.waitFor(
         (message) => message.type === "stroke", "drawing sync", beforeStroke[index],
       )));
+
+      if (!partialChecked && word.includes(" ")) {
+        const partialFrom = host.messages.length;
+        const firstPart = word.split(" ")[0];
+        guesser.send({ type: "guess", text: firstPart });
+        const partialState = await host.state(
+          (state) => state.phase === "drawing" && state.wordHint.startsWith(`${firstPart} `),
+          "partial word reveal", partialFrom,
+        );
+        assert.deepEqual(partialState.players.map((player) => player.score), scores, "A partial word does not award points");
+        partialChecked = true;
+        await new Promise((resolve) => setTimeout(resolve, 1_550));
+      }
 
       const beforeGuess = clients.map((client) => client.messages.length);
       guesser.send({ type: "guess", text: word });
@@ -138,7 +154,7 @@ async function smoke(mode, playerCount) {
     const finalState = host.messages.filter((message) => message.type === "state").at(-1).state;
     assert.equal(finalState.phase, "lobby");
     assert.equal(finalState.endsAt, null);
-    console.log(JSON.stringify({ ok: true, mode, playerCount, firstGuessEndsRound: true, fullDrawerRotation: true, privateWords: true, scoring: true, drawingSync: true, leaveFlow: true }));
+    console.log(JSON.stringify({ ok: true, mode, playerCount, partialWordFlow: partialChecked, firstGuessEndsRound: true, fullDrawerRotation: true, privateWords: true, scoring: true, drawingSync: true, leaveFlow: true }));
   } finally {
     await Promise.all(clients.map(({ ws, send }) => new Promise((resolve) => {
       if (ws.readyState === WebSocket.CLOSED) return resolve();
