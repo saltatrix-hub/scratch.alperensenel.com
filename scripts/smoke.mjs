@@ -9,8 +9,8 @@ const response = await fetch(`${base}/api/rooms`, {
 if (!response.ok) throw new Error(`Room create failed: ${response.status}`);
 const { code } = await response.json();
 
-function socket(name) {
-  const url = new URL(`${base.replace(/^http/, "ws")}/api/rooms/${code}/socket`);
+function socket(name, targetCode = code) {
+  const url = new URL(`${base.replace(/^http/, "ws")}/api/rooms/${targetCode}/socket`);
   url.searchParams.set("name", name);
   return new WebSocket(url);
 }
@@ -83,4 +83,39 @@ await leavePromise;
 
 host.close(1000);
 guest.close(1000);
-console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, drawingSync: true, scoringFlow: true, allGuessersEndRound: true, leaveFlow: true }));
+
+const chaosResponse = await fetch(`${base}/api/rooms`, {
+  method:"POST",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({mode:"chaos",difficulty:"funny",targetScore:10,roundSeconds:60}),
+});
+if (!chaosResponse.ok) throw new Error(`Chaos room create failed: ${chaosResponse.status}`);
+const {code:chaosCode}=await chaosResponse.json();
+const chaosPlayers=[];
+for (const playerName of ["Ada","Bora","Cem"]) {
+  const playerSocket=socket(playerName,chaosCode);
+  await new Promise((resolve,reject)=>{playerSocket.onopen=resolve;playerSocket.onerror=reject;});
+  await waitFor(playerSocket,"welcome");
+  chaosPlayers.push(playerSocket);
+}
+const writingStates=chaosPlayers.map(playerSocket=>waitForState(playerSocket,state=>state.phase==="chaos-writing","chaos writing"));
+chaosPlayers[0].send(JSON.stringify({type:"start"}));
+const writing=await Promise.all(writingStates);
+if (writing.some(state=>state.chaos.totalRounds!==3||state.chaos.task.kind!=="write")) throw new Error("Chaos did not create n rounds and writing tasks");
+const drawingStates=chaosPlayers.map(playerSocket=>waitForState(playerSocket,state=>state.phase==="chaos-drawing","chaos drawing"));
+writing.forEach((state,index)=>chaosPlayers[index].send(JSON.stringify({type:"chaos-submit",chainId:state.chaos.task.chainId,text:["uçan kedi","dansçı robot","şapkalı balık"][index]})));
+const drawing=await Promise.all(drawingStates);
+if (drawing.some(state=>state.chaos.task.kind!=="draw"||!state.chaos.task.prompt)) throw new Error("Chaos prompts did not rotate into drawing tasks");
+const sampleStrokes=[{color:"#17152b",size:9,tool:"pen",points:[{x:.1,y:.1},{x:.7,y:.7}]}];
+const guessingStates=chaosPlayers.map(playerSocket=>waitForState(playerSocket,state=>state.phase==="chaos-guessing","chaos guessing"));
+drawing.forEach((state,index)=>chaosPlayers[index].send(JSON.stringify({type:"chaos-submit",chainId:state.chaos.task.chainId,strokes:sampleStrokes})));
+const guessing=await Promise.all(guessingStates);
+if (guessing.some(state=>state.chaos.task.kind!=="guess"||!state.chaos.task.drawing?.length)) throw new Error("Chaos drawings did not rotate into guessing tasks");
+const albumStates=chaosPlayers.map(playerSocket=>waitForState(playerSocket,state=>state.phase==="album","chaos album"));
+guessing.forEach((state,index)=>chaosPlayers[index].send(JSON.stringify({type:"chaos-submit",chainId:state.chaos.task.chainId,text:`tahmin ${index}`})));
+const albums=await Promise.all(albumStates);
+const chains=albums[0].chaos.albums;
+if (chains.length!==3||chains.some(chain=>chain.entries.length!==3)) throw new Error("Chaos album is incomplete");
+if (chains.some(chain=>chain.entries.some((entry,index)=>index>0&&entry.authorId===chain.entries[index-1].authorId))) throw new Error("A chaos chain returned to the same player consecutively");
+chaosPlayers.forEach(playerSocket=>playerSocket.close(1000));
+
+console.log(JSON.stringify({ ok: true, room: code, wordDeliveredPrivately: true, drawingSync: true, scoringFlow: true, allGuessersEndRound: true, leaveFlow: true, chaosRoom:chaosCode,roundRobin:true,albumComplete:true }));

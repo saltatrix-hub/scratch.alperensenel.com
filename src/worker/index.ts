@@ -1,8 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { hiddenWord, normalizeGuess, revealMatchingParts } from "../shared/word-hint";
+import { pickUniqueWord, type Difficulty } from "./wordPools";
 
-type Mode = "solo" | "team";
-type Phase = "lobby" | "drawing" | "reveal" | "finished";
+type Mode = "solo" | "team" | "chaos";
+type Phase = "lobby" | "drawing" | "reveal" | "finished" | "chaos-writing" | "chaos-drawing" | "chaos-guessing" | "album";
 type Tool = "pen" | "eraser";
 
 interface Env {
@@ -12,6 +13,7 @@ interface Env {
 
 interface Settings {
   mode: Mode;
+  difficulty: Difficulty;
   targetScore: 10 | 20 | 30;
   roundSeconds: 60 | 90 | 120;
 }
@@ -36,6 +38,12 @@ interface Stroke {
   points: StrokePoint[];
 }
 
+type ChaosEntry =
+  | { type:"prompt"|"guess"; authorId:string; authorName:string; text:string }
+  | { type:"drawing"; authorId:string; authorName:string; strokes:Stroke[] };
+interface ChaosChain { id:string; ownerId:string; ownerName:string; entries:ChaosEntry[] }
+interface ChaosState { playerOrder:string[]; round:number; totalRounds:number; submittedPlayerIds:string[]; chains:ChaosChain[] }
+
 interface RoomState {
   code: string;
   phase: Phase;
@@ -50,6 +58,8 @@ interface RoomState {
   revealedParts: boolean[];
   winner: string | null;
   winnerScore: number | null;
+  usedWords: string[];
+  chaos: ChaosState | null;
   createdAt: number;
 }
 
@@ -59,15 +69,6 @@ interface WinnerResult {
 }
 
 interface SocketAttachment { playerId: string }
-
-const WORDS = [
-  "uçan balon", "güneş gözlüğü", "kahve fincanı", "deniz feneri", "kaykay", "penguen",
-  "gökkuşağı", "patlamış mısır", "itfaiye arabası", "uyuyan kedi", "sihirli değnek",
-  "kardan adam", "uzay gemisi", "kaplumbağa", "kulaklık", "fotoğraf makinesi", "pizza",
-  "şemsiye", "basketbol", "kamp çadırı", "robot", "dondurma", "trafik ışığı", "gitar",
-  "denizaltı", "kelebek", "çalar saat", "hazine sandığı", "helikopter", "çamaşır makinesi",
-  "fil", "mikroskop", "tren", "kaktüs", "diş fırçası", "sörf tahtası", "arı kovanı"
-] as const;
 
 const COLORS = new Set(["#17152b", "#7357f6", "#ff5f8f", "#15cbb9", "#ffbd3d", "#2f8cff"]);
 const SIZES = new Set([4, 9, 18]);
@@ -104,13 +105,34 @@ function publicPlayer(player: Player) {
   };
 }
 
-function publicState(state: RoomState) {
+function assignedChain(chaos:ChaosState, playerId:string):ChaosChain|undefined {
+  const playerIndex=chaos.playerOrder.indexOf(playerId);
+  if (playerIndex < 0) return undefined;
+  const chainIndex=(playerIndex-(chaos.round-1)+chaos.playerOrder.length)%chaos.playerOrder.length;
+  return chaos.chains[chainIndex];
+}
+
+function publicState(state: RoomState, viewerId?:string) {
   const drawer = state.players[state.drawerIndex];
   const teamScores = state.players.reduce((scores, player) => {
     scores[player.team] += player.score;
     return scores;
   }, { A: 0, B: 0 });
 
+  const chaos = state.chaos ? (() => {
+    const chain=viewerId ? assignedChain(state.chaos!,viewerId) : undefined;
+    const previous=chain?.entries.at(-1);
+    const kind=state.chaos!.round===1 ? "write" : state.chaos!.round%2===0 ? "draw" : "guess";
+    return {
+      round:state.chaos!.round,totalRounds:state.chaos!.totalRounds,
+      submittedCount:state.chaos!.submittedPlayerIds.length,
+      submittedPlayerIds:state.chaos!.submittedPlayerIds,
+      task:chain ? {chainId:chain.id,kind,submitted:state.chaos!.submittedPlayerIds.includes(viewerId!),
+        ...(kind==="draw" && previous?.type!=="drawing" ? {prompt:previous?.text ?? ""} : {}),
+        ...(kind==="guess" && previous?.type==="drawing" ? {drawing:previous.strokes} : {})} : undefined,
+      albums:state.phase==="album" ? state.chaos!.chains.map(({id,ownerName,entries})=>({id,ownerName,entries})) : undefined,
+    };
+  })() : undefined;
   return {
     code: state.code,
     phase: state.phase,
@@ -125,6 +147,7 @@ function publicState(state: RoomState) {
     winnerScore: state.winnerScore ?? null,
     teamScores,
     strokes: state.strokes,
+    chaos,
   };
 }
 
@@ -146,6 +169,9 @@ export class GameRoom extends DurableObject<Env> {
       if (this.state) {
         // Rooms created by older deployments do not have partial-word state yet.
         this.state.revealedParts ??= [];
+        this.state.settings.difficulty ??= "easy";
+        this.state.usedWords ??= [];
+        this.state.chaos ??= null;
         for (const player of this.state.players) player.connected = false;
       }
     });
@@ -167,6 +193,8 @@ export class GameRoom extends DurableObject<Env> {
       revealedParts: [],
       winner: null,
       winnerScore: null,
+      usedWords: [],
+      chaos: null,
       createdAt: Date.now(),
     };
     this.persist();
@@ -216,7 +244,7 @@ export class GameRoom extends DurableObject<Env> {
     this.persist();
 
     server.send(JSON.stringify({ type: "welcome", playerId: player.id, token: player.token }));
-    server.send(JSON.stringify({ type: "state", state: publicState(this.state) }));
+    server.send(JSON.stringify({ type: "state", state: publicState(this.state, player.id) }));
     if (this.currentDrawer()?.id === player.id && this.state.phase === "drawing") {
       server.send(JSON.stringify({ type: "word", word: this.state.word }));
     }
@@ -226,7 +254,7 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    if (typeof raw !== "string" || raw.length > 32_000 || !this.state) return;
+    if (typeof raw !== "string" || raw.length > 512_000 || !this.state) return;
     const attachment = socket.deserializeAttachment() as SocketAttachment | null;
     const player = this.state.players.find((candidate) => candidate.id === attachment?.playerId);
     if (!player) return;
@@ -243,7 +271,8 @@ export class GameRoom extends DurableObject<Env> {
     switch (message.type) {
       case "start":
         if (player.isHost && this.state.phase === "lobby" && this.state.players.length >= 2) {
-          this.startRound();
+          if (this.state.settings.mode === "chaos") this.startChaos();
+          else this.startRound();
         }
         break;
       case "settings":
@@ -269,8 +298,11 @@ export class GameRoom extends DurableObject<Env> {
       case "guess":
         this.handleGuess(socket, player, message.text);
         break;
+      case "chaos-submit":
+        this.handleChaosSubmit(player,message);
+        break;
       case "restart":
-        if (player.isHost && this.state.phase === "finished") this.restartGame();
+        if (player.isHost && (this.state.phase === "finished" || this.state.phase === "album")) this.restartGame();
         break;
       case "leave":
         this.leaveRoom(socket, player);
@@ -321,17 +353,22 @@ export class GameRoom extends DurableObject<Env> {
 
   private broadcastState(): void {
     if (!this.state) return;
-    this.broadcast({ type: "state", state: publicState(this.state) });
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment=socket.deserializeAttachment() as SocketAttachment|null;
+      try { socket.send(JSON.stringify({type:"state",state:publicState(this.state,attachment?.playerId)})); } catch { /* closed */ }
+    }
   }
 
   private updateSettings(message: Record<string, unknown>): void {
     if (!this.state) return;
     const mode = message.mode;
+    const difficulty=message.difficulty;
     const targetScore = Number(message.targetScore);
     const roundSeconds = Number(message.roundSeconds);
-    if ((mode === "solo" || mode === "team") && [10, 20, 30].includes(targetScore) && [60, 90, 120].includes(roundSeconds)) {
+    if ((mode === "solo" || mode === "team" || mode === "chaos") && ["easy","medium","hard","apocalypse","funny"].includes(String(difficulty)) && [10, 20, 30].includes(targetScore) && [60, 90, 120].includes(roundSeconds)) {
       this.state.settings = {
         mode,
+        difficulty:difficulty as Difficulty,
         targetScore: targetScore as Settings["targetScore"],
         roundSeconds: roundSeconds as Settings["roundSeconds"],
       };
@@ -345,7 +382,8 @@ export class GameRoom extends DurableObject<Env> {
     this.state.drawerIndex = (this.state.drawerIndex + 1) % this.state.players.length;
     this.state.round += 1;
     this.state.phase = "drawing";
-    this.state.word = WORDS[crypto.getRandomValues(new Uint32Array(1))[0] % WORDS.length];
+    this.state.word = pickUniqueWord(this.state.settings.difficulty,this.state.usedWords);
+    this.state.usedWords.push(this.state.word);
     this.state.strokes = [];
     this.state.revealedWord = null;
     this.state.revealedParts = [];
@@ -359,6 +397,71 @@ export class GameRoom extends DurableObject<Env> {
     this.broadcastState();
     const drawerSocket = this.socketFor(this.currentDrawer()?.id);
     drawerSocket?.send(JSON.stringify({ type: "word", word: this.state.word }));
+  }
+
+  private startChaos():void {
+    if (!this.state || this.state.players.length < 2) return;
+    const order=this.state.players.map(player=>player.id);
+    this.state.chaos={
+      playerOrder:order,round:1,totalRounds:order.length,submittedPlayerIds:[],
+      chains:this.state.players.map(player=>({id:crypto.randomUUID(),ownerId:player.id,ownerName:player.name,entries:[]})),
+    };
+    this.state.phase="chaos-writing";
+    this.state.round=1;
+    this.state.endsAt=null;
+    this.state.strokes=[];
+    this.persist();
+    void this.ctx.storage.deleteAlarm();
+    this.broadcastState();
+  }
+
+  private sanitizeStrokes(value:unknown):Stroke[] {
+    if (!Array.isArray(value)) return [];
+    return value.slice(0,600).flatMap((raw):Stroke[]=>{
+      if (!raw || typeof raw!=="object") return [];
+      const item=raw as Record<string,unknown>;
+      const color=typeof item.color==="string" && COLORS.has(item.color) ? item.color : "#17152b";
+      const size=Number(item.size);
+      const tool:Tool=item.tool==="eraser" ? "eraser" : "pen";
+      if (!SIZES.has(size) || !Array.isArray(item.points)) return [];
+      const points=item.points.slice(0,80).flatMap((rawPoint):StrokePoint[]=>{
+        if (!rawPoint || typeof rawPoint!=="object") return [];
+        const point=rawPoint as Record<string,unknown>,x=Number(point.x),y=Number(point.y);
+        return Number.isFinite(x)&&Number.isFinite(y)&&x>=0&&x<=1&&y>=0&&y<=1 ? [{x,y}] : [];
+      });
+      return points.length>=2 ? [{color,size,tool,points}] : [];
+    });
+  }
+
+  private handleChaosSubmit(player:Player,message:Record<string,unknown>):void {
+    if (!this.state?.chaos || !this.state.phase.startsWith("chaos-")) return;
+    const chaos=this.state.chaos;
+    if (!chaos.playerOrder.includes(player.id) || chaos.submittedPlayerIds.includes(player.id)) return;
+    const chain=assignedChain(chaos,player.id);
+    if (!chain || message.chainId!==chain.id) return;
+    const base={authorId:player.id,authorName:player.name};
+    if (chaos.round%2===0) {
+      const strokes=this.sanitizeStrokes(message.strokes);
+      if (!strokes.length) return;
+      chain.entries.push({type:"drawing",...base,strokes});
+    } else {
+      const text=typeof message.text==="string" ? message.text.trim().replace(/\s+/g," ").slice(0,120) : "";
+      if (!text) return;
+      chain.entries.push({type:chaos.round===1 ? "prompt" : "guess",...base,text});
+    }
+    chaos.submittedPlayerIds.push(player.id);
+    if (chaos.submittedPlayerIds.length===chaos.playerOrder.length) {
+      if (chaos.round>=chaos.totalRounds) {
+        this.state.phase="album";
+      } else {
+        chaos.round+=1;
+        chaos.submittedPlayerIds=[];
+        this.state.round=chaos.round;
+        this.state.phase=chaos.round%2===0 ? "chaos-drawing" : "chaos-guessing";
+      }
+    }
+    this.persist();
+    this.broadcastState();
   }
 
   private handleStroke(player: Player, message: Record<string, unknown>): void {
@@ -459,6 +562,8 @@ export class GameRoom extends DurableObject<Env> {
     this.state.revealedWord = this.state.word;
     this.state.winner = null;
     this.state.winnerScore = null;
+    this.state.usedWords = [];
+    this.state.chaos = null;
     this.persist();
     void this.ctx.storage.setAlarm(this.state.endsAt);
     this.broadcast({ type: "reveal", message, word: this.state.word });
@@ -490,6 +595,7 @@ export class GameRoom extends DurableObject<Env> {
     if (leavingIndex < 0) return;
     const wasDrawer = this.currentDrawer()?.id === player.id;
     const wasDrawing = this.state.phase === "drawing";
+    const wasChaos = this.state.settings.mode === "chaos" && this.state.phase !== "lobby";
     const name = player.name;
     this.state.players.splice(leavingIndex, 1);
 
@@ -507,7 +613,7 @@ export class GameRoom extends DurableObject<Env> {
     if (player.isHost) this.state.players[0].isHost = true;
     if (leavingIndex < this.state.drawerIndex) this.state.drawerIndex -= 1;
 
-    if (this.state.players.length < 2 && this.state.phase !== "lobby") {
+    if (wasChaos || (this.state.players.length < 2 && this.state.phase !== "lobby")) {
       this.state.phase = "lobby";
       this.state.drawerIndex = -1;
       this.state.endsAt = null;
@@ -516,6 +622,7 @@ export class GameRoom extends DurableObject<Env> {
       this.state.revealedParts = [];
       this.state.winner = null;
       this.state.winnerScore = null;
+      this.state.chaos = null;
       void this.ctx.storage.deleteAlarm();
     } else if (wasDrawer && wasDrawing) {
       this.state.drawerIndex = (leavingIndex - 1 + this.state.players.length) % this.state.players.length;
@@ -551,7 +658,8 @@ export default {
         const body: unknown = await request.json();
         const candidate = body && typeof body === "object" ? body as Record<string, unknown> : {};
         const settings: Settings = {
-          mode: candidate.mode === "team" ? "team" : "solo",
+          mode: candidate.mode === "team" || candidate.mode === "chaos" ? candidate.mode : "solo",
+          difficulty: ["easy","medium","hard","apocalypse","funny"].includes(String(candidate.difficulty)) ? candidate.difficulty as Difficulty : "easy",
           targetScore: [10, 20, 30].includes(Number(candidate.targetScore)) ? Number(candidate.targetScore) as Settings["targetScore"] : 10,
           roundSeconds: [60, 90, 120].includes(Number(candidate.roundSeconds)) ? Number(candidate.roundSeconds) as Settings["roundSeconds"] : 90,
         };

@@ -1,5 +1,6 @@
-export type Mode = "solo" | "team";
-export type Phase = "lobby" | "drawing" | "reveal" | "finished";
+export type Mode = "solo" | "team" | "chaos";
+export type Difficulty = "easy" | "medium" | "hard" | "apocalypse" | "funny";
+export type Phase = "lobby" | "drawing" | "reveal" | "finished" | "chaos-writing" | "chaos-drawing" | "chaos-guessing" | "album";
 
 export interface Player {
   id: string;
@@ -19,10 +20,31 @@ export interface Stroke {
   points: StrokePoint[];
 }
 
+export type ChaosEntry =
+  | { type:"prompt"|"guess"; authorId:string; authorName:string; text:string }
+  | { type:"drawing"; authorId:string; authorName:string; strokes:Stroke[] };
+
+export interface ChaosTask {
+  chainId:string;
+  kind:"write"|"draw"|"guess";
+  prompt?:string;
+  drawing?:Stroke[];
+  submitted:boolean;
+}
+
+export interface ChaosView {
+  round:number;
+  totalRounds:number;
+  submittedCount:number;
+  submittedPlayerIds:string[];
+  task?:ChaosTask;
+  albums?:Array<{id:string; ownerName:string; entries:ChaosEntry[]}>;
+}
+
 export interface GameState {
   code: string;
   phase: Phase;
-  settings: { mode: Mode; targetScore: 10 | 20 | 30; roundSeconds: 60 | 90 | 120 };
+  settings: { mode: Mode; difficulty:Difficulty; targetScore: 10 | 20 | 30; roundSeconds: 60 | 90 | 120 };
   players: Player[];
   drawerId: string | null;
   round: number;
@@ -33,6 +55,7 @@ export interface GameState {
   winnerScore: number | null;
   teamScores: { A: number; B: number };
   strokes: Stroke[];
+  chaos?:ChaosView;
 }
 
 export interface FeedItem {

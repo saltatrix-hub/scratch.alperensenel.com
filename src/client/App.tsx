@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Brush, Check, Clock3, Copy, Crown, Eraser, LogIn, LogOut, Paintbrush, Play, RotateCcw, Sparkles, Users, Volume2, VolumeX, X } from "lucide-react";
-import type { FeedItem, GameState, Mode, Stroke, StrokePoint } from "./types";
+import type { ChaosEntry, Difficulty, FeedItem, GameState, Mode, Stroke, StrokePoint } from "./types";
 
 const PALETTE = ["#17152b", "#7357f6", "#ff5f8f", "#15cbb9", "#ffbd3d", "#2f8cff"];
 const SIZES = [{ value: 4, label: "İnce" }, { value: 9, label: "Orta" }, { value: 18, label: "Kalın" }];
@@ -38,6 +38,7 @@ export default function App() {
   const [roomCode, setRoomCode] = useState(initialRoom);
   const [name, setName] = useState(localStorage.getItem("scratch-name") ?? "");
   const [mode, setMode] = useState<Mode>("solo");
+  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [targetScore, setTargetScore] = useState<10 | 20 | 30>(10);
   const [roundSeconds, setRoundSeconds] = useState<60 | 90 | 120>(90);
   const [state, setState] = useState<GameState | null>(null);
@@ -149,7 +150,7 @@ export default function App() {
       const response = await fetch(`${API_BASE}/api/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, targetScore, roundSeconds }),
+        body: JSON.stringify({ mode, difficulty, targetScore, roundSeconds }),
       });
       const data = await response.json() as { code?: string; error?: string };
       if (!response.ok || !data.code) throw new Error(data.error || "Oda oluşturulamadı.");
@@ -182,6 +183,7 @@ export default function App() {
     return <Home
       name={name} setName={setName} roomCode={roomCode} setRoomCode={setRoomCode}
       mode={mode} setMode={setMode} targetScore={targetScore} setTargetScore={setTargetScore}
+      difficulty={difficulty} setDifficulty={setDifficulty}
       roundSeconds={roundSeconds} setRoundSeconds={setRoundSeconds}
       onCreate={createRoom} onJoin={() => connect(roomCode.toUpperCase(), name)}
       connecting={connecting} error={error}
@@ -200,6 +202,7 @@ interface HomeProps {
   name: string; setName: (value: string) => void;
   roomCode: string; setRoomCode: (value: string) => void;
   mode: Mode; setMode: (value: Mode) => void;
+  difficulty:Difficulty; setDifficulty:(value:Difficulty)=>void;
   targetScore: 10 | 20 | 30; setTargetScore: (value: 10 | 20 | 30) => void;
   roundSeconds: 60 | 90 | 120; setRoundSeconds: (value: 60 | 90 | 120) => void;
   onCreate: () => void; onJoin: () => void; connecting: boolean; error: string;
@@ -219,9 +222,9 @@ function Home(props: HomeProps) {
       <div className="setup-card">
         <div className="card-title"><span>Oyun odası</span><small>30 saniyede hazır</small></div>
         <label>Oyundaki adın<input value={props.name} maxLength={22} onChange={(event) => props.setName(event.target.value)} placeholder="Örn. Alperen" autoComplete="nickname" /></label>
-        <div className="segmented"><button className={props.mode === "solo" ? "active" : ""} onClick={() => props.setMode("solo")}><Crown size={17}/> Solo</button><button className={props.mode === "team" ? "active" : ""} onClick={() => props.setMode("team")}><Users size={17}/> Ekipli</button></div>
-        <OptionRow label="Bitiş puanı" values={[10,20,30]} value={props.targetScore} onChange={(value) => props.setTargetScore(value as 10|20|30)} suffix=" puan" />
-        <OptionRow label="Çizim süresi" values={[60,90,120]} value={props.roundSeconds} onChange={(value) => props.setRoundSeconds(value as 60|90|120)} suffix=" sn" />
+        <div className="segmented mode-segmented"><button className={props.mode === "solo" ? "active" : ""} onClick={() => props.setMode("solo")}><Crown size={17}/> Solo</button><button className={props.mode === "team" ? "active" : ""} onClick={() => props.setMode("team")}><Users size={17}/> Ekipli</button><button className={props.mode === "chaos" ? "active chaos" : ""} onClick={() => props.setMode("chaos")}><Sparkles size={17}/> Kargaşa</button></div>
+        {props.mode!=="chaos" && <><DifficultyRow value={props.difficulty} onChange={props.setDifficulty}/><OptionRow label="Bitiş puanı" values={[10,20,30]} value={props.targetScore} onChange={(value) => props.setTargetScore(value as 10|20|30)} suffix=" puan" /><OptionRow label="Çizim süresi" values={[60,90,120]} value={props.roundSeconds} onChange={(value) => props.setRoundSeconds(value as 60|90|120)} suffix=" sn" /></>}
+        {props.mode==="chaos"&&<div className="chaos-explainer"><b>🌀 Kulaktan Kulağa Çizim</b><span>Herkes yazar, çizer ve tahmin eder. Tur sayısı oyuncu sayısına eşittir; finalde bütün felaket albüm olur.</span></div>}
         <button className="primary-button" onClick={props.onCreate} disabled={props.connecting}><Paintbrush size={19}/>{props.connecting ? "Oda hazırlanıyor…" : "Yeni oda oluştur"}</button>
         <div className="divider"><span>veya kodla katıl</span></div>
         <div className="join-row"><input aria-label="Oda kodu" value={props.roomCode} maxLength={6} onChange={(event) => props.setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, ""))} placeholder="ABC123" /><button onClick={props.onJoin} disabled={props.connecting || props.roomCode.length !== 6}><LogIn size={18}/> Katıl</button></div>
@@ -234,6 +237,11 @@ function Home(props: HomeProps) {
 
 function OptionRow({ label, values, value, onChange, suffix }: { label: string; values: number[]; value: number; onChange: (value: number) => void; suffix: string }) {
   return <div className="option-block"><span>{label}</span><div className="option-row">{values.map((item) => <button key={item} className={value === item ? "active" : ""} onClick={() => onChange(item)}>{item}{suffix}</button>)}</div></div>;
+}
+
+function DifficultyRow({value,onChange}:{value:Difficulty;onChange:(value:Difficulty)=>void}) {
+  const choices:Array<[Difficulty,string]>=[["easy","Kolay"],["medium","Orta"],["hard","Zor"],["apocalypse","☄️ Kıyamet"],["funny","😂 Komik"]];
+  return <div className="option-block"><span>Kelime seviyesi · her biri 10.000+</span><div className="option-row difficulty-row">{choices.map(([id,label])=><button key={id} className={value===id?`active ${id}`:""} onClick={()=>onChange(id)}>{label}</button>)}</div></div>;
 }
 
 function Brand() { return <div className="brand"><span className="brand-mark"><Brush size={20}/></span><b>SCRATCH!</b></div>; }
@@ -250,6 +258,8 @@ function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted,
   const copyRoom = async () => {
     await navigator.clipboard.writeText(`${location.origin}?room=${state.code}`);
   };
+
+  if (state.settings.mode==="chaos" && state.phase!=="lobby") return <ChaosGame state={state} playerId={playerId} send={send} copyRoom={copyRoom} onLeave={onLeave}/>;
 
   return <main className="game-shell">
     <Confetti burst={celebrate} />
@@ -291,6 +301,44 @@ function Game({ state, playerId, word, feed, socket, remaining, muted, setMuted,
   </main>;
 }
 
+function ChaosGame({state,playerId,send,copyRoom,onLeave}:{state:GameState;playerId:string;send:(value:unknown)=>void;copyRoom:()=>Promise<void>;onLeave:()=>void}) {
+  const chaos=state.chaos, task=chaos?.task, me=state.players.find(player=>player.id===playerId);
+  const [text,setText]=useState("");
+  useEffect(()=>setText(""),[task?.chainId,chaos?.round]);
+  if (!chaos) return <Loading/>;
+  const submitText=()=>{if(text.trim()&&task) send({type:"chaos-submit",chainId:task.chainId,text});};
+  if (state.phase==="album") return <main className="game-shell chaos-shell"><header className="game-header"><Brand/><div className="room-code"><small>ODA KODU</small><button onClick={copyRoom}>{state.code}<Copy size={15}/></button></div><button className="leave-button" onClick={onLeave}><LogOut size={16}/> Çık</button></header><section className="album-page"><div className="album-title"><span>🎞️</span><h1>Kargaşa Albümü</h1><p>Masum fikirlerin başına gelenlerin eksiksiz serüveni.</p></div>{chaos.albums?.map((album,index)=><article className="album-chain" key={album.id}><h2>#{index+1} · {album.ownerName} ile başladı</h2><div className="album-entries">{album.entries.map((entry,entryIndex)=><AlbumEntry entry={entry} index={entryIndex} key={`${album.id}-${entryIndex}`}/>)}</div></article>)}{me?.isHost?<button className="primary-button album-restart" onClick={()=>send({type:"restart"})}><RotateCcw size={18}/> Yeni kargaşa</button>:<p className="waiting-note">Ev sahibi yeni oyunu başlatabilir.</p>}</section></main>;
+  return <main className="game-shell chaos-shell"><header className="game-header"><Brand/><div className="room-code"><small>ODA KODU</small><button onClick={copyRoom}>{state.code}<Copy size={15}/></button></div><button className="leave-button" onClick={onLeave}><LogOut size={16}/> Çık</button></header><section className="chaos-stage"><div className="chaos-progress"><div><small>KARGAŞA TURU</small><b>{chaos.round} / {chaos.totalRounds}</b></div><div className="progress-track"><i style={{width:`${chaos.submittedCount/chaos.totalRounds*100}%`}}/></div><span>{chaos.submittedCount}/{chaos.totalRounds} hazır</span></div><div className="chaos-player-row">{state.players.map(player=><span key={player.id} className={chaos.submittedPlayerIds.includes(player.id)?"done":""}>{chaos.submittedPlayerIds.includes(player.id)?"✓":"…"} {player.name}</span>)}</div>{task?.submitted?<div className="chaos-wait"><span>✓</span><h2>Gönderildi!</h2><p>Diğer sanatçıların felaketi tamamlamasını bekliyoruz.</p></div>:task?.kind==="draw"?<div className="chaos-task"><div className="task-heading"><small>ŞUNU ÇİZ</small><h2>{task.prompt}</h2><p>Yazı kullanmadan elinden geleni yap.</p></div><ChaosDrawingBoard key={task.chainId} onSubmit={(strokes)=>send({type:"chaos-submit",chainId:task.chainId,strokes})}/></div>:<div className="chaos-task text-task"><div className="task-heading"><small>{task?.kind==="write"?"BİR ŞEY UYDUR":"BU ÇİZİM NE?"}</small><h2>{task?.kind==="write"?"Komik veya çizilebilir bir cümle yaz.":"Gördüğünü tek cümlede tahmin et."}</h2></div>{task?.kind==="guess"&&<StrokePreview strokes={task.drawing??[]}/>}<div className="chaos-text-submit"><input autoFocus maxLength={120} value={text} onChange={event=>setText(event.target.value)} onKeyDown={event=>event.key==="Enter"&&submitText()} placeholder={task?.kind==="write"?"Örn. süpürge tutan köpek balığı":"Tahminini yaz…"}/><button className="primary-button" disabled={!text.trim()} onClick={submitText}>Gönder <Play size={17}/></button></div></div>}</section></main>;
+}
+
+function AlbumEntry({entry,index}:{entry:ChaosEntry;index:number}) {
+  return <div className="album-entry"><div className="album-step">{index+1}</div><div className="album-content"><small>{entry.authorName} · {entry.type==="drawing"?"çizdi":entry.type==="prompt"?"yazdı":"tahmin etti"}</small>{entry.type==="drawing"?<StrokePreview strokes={entry.strokes}/>:<strong>{entry.text}</strong>}</div></div>;
+}
+
+function drawStrokes(canvas:HTMLCanvasElement,strokes:Stroke[]) {
+  const rect=canvas.getBoundingClientRect(),ratio=Math.min(2,devicePixelRatio||1);
+  canvas.width=Math.floor(rect.width*ratio);canvas.height=Math.floor(rect.height*ratio);
+  const context=canvas.getContext("2d")!;context.scale(ratio,ratio);context.fillStyle="#fff";context.fillRect(0,0,rect.width,rect.height);
+  for(const stroke of strokes){if(stroke.points.length<2)continue;context.beginPath();context.moveTo(stroke.points[0].x*rect.width,stroke.points[0].y*rect.height);for(const point of stroke.points.slice(1))context.lineTo(point.x*rect.width,point.y*rect.height);context.strokeStyle=stroke.tool==="eraser"?"#fff":stroke.color;context.lineWidth=stroke.size;context.lineCap="round";context.lineJoin="round";context.stroke();}
+}
+
+function StrokePreview({strokes}:{strokes:Stroke[]}) {
+  const ref=useRef<HTMLCanvasElement>(null);
+  useEffect(()=>{const canvas=ref.current;if(!canvas)return;const redraw=()=>drawStrokes(canvas,strokes);redraw();const observer=new ResizeObserver(redraw);observer.observe(canvas);return()=>observer.disconnect();},[strokes]);
+  return <canvas ref={ref} className="stroke-preview"/>;
+}
+
+function ChaosDrawingBoard({onSubmit}:{onSubmit:(strokes:Stroke[])=>void}) {
+  const [strokes,setStrokes]=useState<Stroke[]>([]),[color,setColor]=useState(PALETTE[0]),[size,setSize]=useState(9),[tool,setTool]=useState<"pen"|"eraser">("pen");
+  const ref=useRef<HTMLCanvasElement>(null),last=useRef<StrokePoint|null>(null);
+  useEffect(()=>{const canvas=ref.current;if(!canvas)return;const redraw=()=>drawStrokes(canvas,strokes);redraw();const observer=new ResizeObserver(redraw);observer.observe(canvas);return()=>observer.disconnect();},[strokes]);
+  const point=(event:React.PointerEvent<HTMLCanvasElement>)=>{const rect=event.currentTarget.getBoundingClientRect();return{x:(event.clientX-rect.left)/rect.width,y:(event.clientY-rect.top)/rect.height};};
+  const begin=(event:React.PointerEvent<HTMLCanvasElement>)=>{event.currentTarget.setPointerCapture(event.pointerId);last.current=point(event);};
+  const move=(event:React.PointerEvent<HTMLCanvasElement>)=>{if(!event.currentTarget.hasPointerCapture(event.pointerId)||!last.current)return;const next=point(event),stroke:Stroke={color,size,tool,points:[last.current,next]};last.current=next;setStrokes(items=>[...items.slice(-599),stroke]);};
+  const end=(event:React.PointerEvent<HTMLCanvasElement>)=>{if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);last.current=null;};
+  return <div className="chaos-board"><div className="toolbar"><div className="colors">{PALETTE.map(item=><button key={item} aria-label={item} className={color===item&&tool==="pen"?"selected":""} style={{background:item}} onClick={()=>{setColor(item);setTool("pen");}}/>)}</div><div className="sizes">{SIZES.map(item=><button key={item.value} aria-label={item.label} className={size===item.value?"selected":""} onClick={()=>setSize(item.value)}><i style={{width:item.value,height:item.value}}/></button>)}</div><button className={`tool-button ${tool==="eraser"?"selected":""}`} onClick={()=>setTool("eraser")}><Eraser size={17}/> Silgi</button><button className="tool-button clear" onClick={()=>setStrokes([])}><RotateCcw size={17}/> Temizle</button></div><canvas ref={ref} onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end}/><button className="primary-button submit-drawing" disabled={!strokes.length} onClick={()=>onSubmit(strokes)}>Çizimi gönder <Play size={17}/></button></div>;
+}
+
 function wordHint(state: GameState, word: string) {
   if (state.phase === "reveal") return state.revealedWord || "";
   if (word) return word;
@@ -298,7 +346,8 @@ function wordHint(state: GameState, word: string) {
 }
 
 function LobbyOverlay({ state, isHost, send }: { state: GameState; isHost: boolean; send: (value: unknown) => void }) {
-  return <div className="lobby-overlay"><span className="lobby-art"><Brush size={38}/></span><h2>Oda hazır!</h2><p>Kodu arkadaşlarınla paylaş. En az 2 oyuncu olduğunda çizim başlayabilir.</p><div className="lobby-settings"><span>{state.settings.mode === "solo" ? "Solo" : "Ekipli"}</span><span>{state.settings.targetScore} puan</span><span>{state.settings.roundSeconds} saniye</span></div>{isHost ? <button className="primary-button" disabled={state.players.length < 2} onClick={() => send({type:"start"})}><Play size={18}/> Oyunu başlat</button> : <div className="waiting"><i/>Ev sahibi bekleniyor</div>}</div>;
+  const labels:Record<Difficulty,string>={easy:"Kolay",medium:"Orta",hard:"Zor",apocalypse:"Kıyamet",funny:"Komik"};
+  return <div className="lobby-overlay"><span className="lobby-art"><Brush size={38}/></span><h2>Oda hazır!</h2><p>Kodu arkadaşlarınla paylaş. En az 2 oyuncu olduğunda çizim başlayabilir.</p><div className="lobby-settings"><span>{state.settings.mode === "solo" ? "Solo" : state.settings.mode==="team" ? "Ekipli":"🌀 Kargaşa"}</span>{state.settings.mode!=="chaos"&&<><span>{labels[state.settings.difficulty]}</span><span>{state.settings.targetScore} puan</span><span>{state.settings.roundSeconds} saniye</span></>}</div>{isHost ? <button className="primary-button" disabled={state.players.length < 2} onClick={() => send({type:"start"})}><Play size={18}/> Oyunu başlat</button> : <div className="waiting"><i/>Ev sahibi bekleniyor</div>}</div>;
 }
 
 function GuessBox({ disabled, onGuess }: { disabled: boolean; onGuess: (value: string) => void }) {
