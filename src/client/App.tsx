@@ -224,7 +224,7 @@ function Home(props: HomeProps) {
         <label>Oyundaki adın<input value={props.name} maxLength={22} onChange={(event) => props.setName(event.target.value)} placeholder="Örn. Alperen" autoComplete="nickname" /></label>
         <div className="segmented mode-segmented"><button className={props.mode === "solo" ? "active" : ""} onClick={() => props.setMode("solo")}><Crown size={17}/> Solo</button><button className={props.mode === "team" ? "active" : ""} onClick={() => props.setMode("team")}><Users size={17}/> Ekipli</button><button className={props.mode === "chaos" ? "active chaos" : ""} onClick={() => props.setMode("chaos")}><Sparkles size={17}/> Kargaşa</button></div>
         {props.mode!=="chaos" && <><DifficultyRow value={props.difficulty} onChange={props.setDifficulty}/><OptionRow label="Bitiş puanı" values={[10,20,30]} value={props.targetScore} onChange={(value) => props.setTargetScore(value as 10|20|30)} suffix=" puan" /><OptionRow label="Çizim süresi" values={[60,90,120]} value={props.roundSeconds} onChange={(value) => props.setRoundSeconds(value as 60|90|120)} suffix=" sn" /></>}
-        {props.mode==="chaos"&&<div className="chaos-explainer"><b>🌀 Kulaktan Kulağa Çizim</b><span>Herkes yazar, çizer ve tahmin eder. Tur sayısı oyuncu sayısına eşittir; finalde bütün felaket albüm olur.</span></div>}
+        {props.mode==="chaos"&&<div className="chaos-explainer"><b>🌀 Kulaktan Kulağa Çizim</b><span>Önce herkes komik bir cümle yazar. Cümle sağındaki oyuncuya gider; sırayla çizilir, tahmin edilir ve son turda bütün zincir albüm olarak açılır.</span></div>}
         <button className="primary-button" onClick={props.onCreate} disabled={props.connecting}><Paintbrush size={19}/>{props.connecting ? "Oda hazırlanıyor…" : "Yeni oda oluştur"}</button>
         <div className="divider"><span>veya kodla katıl</span></div>
         <div className="join-row"><input aria-label="Oda kodu" value={props.roomCode} maxLength={6} onChange={(event) => props.setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, ""))} placeholder="ABC123" /><button onClick={props.onJoin} disabled={props.connecting || props.roomCode.length !== 6}><LogIn size={18}/> Katıl</button></div>
@@ -241,7 +241,7 @@ function OptionRow({ label, values, value, onChange, suffix }: { label: string; 
 
 function DifficultyRow({value,onChange}:{value:Difficulty;onChange:(value:Difficulty)=>void}) {
   const choices:Array<[Difficulty,string]>=[["easy","Kolay"],["medium","Orta"],["hard","Zor"],["apocalypse","☄️ Kıyamet"],["funny","😂 Komik"]];
-  return <div className="option-block"><span>Kelime seviyesi · her biri 10.000+</span><div className="option-row difficulty-row">{choices.map(([id,label])=><button key={id} className={value===id?`active ${id}`:""} onClick={()=>onChange(id)}>{label}</button>)}</div></div>;
+  return <div className="option-block"><span>İki kelimelik ifadeler · her seviyede 11.000</span><div className="option-row difficulty-row">{choices.map(([id,label])=><button key={id} className={value===id?`active ${id}`:""} onClick={()=>onChange(id)}>{label}</button>)}</div></div>;
 }
 
 function Brand() { return <div className="brand"><span className="brand-mark"><Brush size={20}/></span><b>SCRATCH!</b></div>; }

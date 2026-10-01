@@ -1,129 +1,118 @@
 export type Difficulty = "easy" | "medium" | "hard" | "apocalypse" | "funny";
 
+// All generated prompts contain exactly two whitespace-separated words.
+// Hyphens keep familiar compound concepts such as "kara-delik" together.
+const MODIFIERS = [
+  "kırmızı", "mavi", "yeşil", "sarı", "mor", "turuncu", "pembe", "beyaz", "siyah", "gri",
+  "altın", "gümüş", "bronz", "renkli", "parlak", "minik", "küçük", "büyük", "dev", "uzun",
+  "kısa", "geniş", "dar", "yuvarlak", "kare", "üçgen", "eğri", "düz", "ince", "kalın",
+  "hafif", "ağır", "hızlı", "yavaş", "hareketli", "durgun", "uçan", "yüzen", "zıplayan", "koşan",
+  "dansçı", "şarkıcı", "uykulu", "neşeli", "üzgün", "şaşkın", "kızgın", "korkak", "cesur", "utangaç",
+  "meraklı", "unutkan", "sakallı", "bıyıklı", "şapkalı", "gözlüklü", "pelerinli", "çizgili", "benekli", "tüylü",
+  "dikenli", "kanatlı", "kuyruklu", "boynuzlu", "robotik", "mekanik", "elektrikli", "manyetik", "buzlu", "ateşli",
+  "dumanlı", "köpüklü", "çamurlu", "karlı", "yağmurlu", "gölgeli", "ışıklı", "görünmez", "şeffaf", "ters",
+  "kırık", "eriyen", "şişen", "kaçan", "kayıp", "gizemli", "sihirli", "perili", "uzaylı", "tarihî",
+  "antik", "gelecekçi", "korsan", "kraliyet", "süper", "gizli", "yasaklı", "yalnız", "ikiz", "üçüz",
+  "komik", "garip", "çılgın", "huysuz", "sevimli", "tehlikeli", "şanslı", "acemi", "usta", "efsanevi",
+] as const;
+
 const EASY_SUBJECTS = [
   "kedi", "köpek", "balık", "kuş", "tavşan", "fil", "zürafa", "aslan", "ayı", "kaplumbağa",
   "balon", "şemsiye", "bisiklet", "otobüs", "tren", "uçak", "gemi", "roket", "robot", "bebek",
   "öğretmen", "doktor", "aşçı", "futbolcu", "palyaço", "dondurma", "pizza", "pasta", "elma", "karpuz",
   "güneş", "ay", "yıldız", "bulut", "gökkuşağı", "ev", "kale", "okul", "park", "deniz",
-] as const;
-const EASY_ACTIONS = [
-  "uyuyor", "koşuyor", "zıplıyor", "gülüyor", "dans ediyor", "şarkı söylüyor", "yüzüyor", "uçuyor",
-  "kitap okuyor", "top oynuyor", "resim çiziyor", "yemek yiyor", "saklanıyor", "el sallıyor", "kaykay sürüyor",
-  "balon tutuyor", "fotoğraf çekiyor", "çiçek kokluyor", "yağmurdan kaçıyor", "piknik yapıyor", "pasta taşıyor",
-  "kardan adam yapıyor", "kumdan kale yapıyor", "davul çalıyor", "uyanmaya çalışıyor",
-] as const;
-const EASY_PLACES = [
-  "parkta", "evde", "okulda", "sahilde", "bahçede", "bulutların üstünde", "mutfakta", "otobüste",
-  "ormanda", "karda", "yağmurda", "ay ışığında", "oyun alanında", "köprüde", "çatı katında",
+  "araba", "kamyon", "traktör", "kayık", "helikopter", "sandalye", "masa", "yatak", "dolap", "lamba",
+  "kitap", "kalem", "silgi", "çanta", "şişe", "bardak", "tabak", "kaşık", "çatal", "saat",
+  "top", "uçurtma", "kaykay", "davul", "gitar", "piyano", "kamera", "telefon", "televizyon", "bilgisayar",
+  "çiçek", "ağaç", "mantar", "dağ", "nehir", "göl", "köprü", "yol", "çadır", "bahçe",
+  "arı", "kelebek", "ördek", "tavuk", "inek", "at", "koyun", "keçi", "maymun", "penguen",
+  "şapka", "ayakkabı", "çorap", "ceket", "kazak", "taç", "anahtar", "merdiven", "kapı", "pencere",
 ] as const;
 
 const MEDIUM_SUBJECTS = [
   "astronot", "dedektif", "korsan", "mucit", "sihirbaz", "arkeolog", "itfaiyeci", "heykeltıraş", "gezgin", "şef",
-  "denizaltı", "zaman makinesi", "uçan halı", "perili ev", "hazine sandığı", "deniz feneri", "lunapark", "yanardağ",
-  "bukalemun", "ahtapot", "penguen", "panda", "dinozor", "baykuş", "kirpi", "rakun", "deve", "koala",
-  "satranç taşı", "mikroskop", "teleskop", "pusula", "gramofon", "daktilo", "çalar saat", "vantilatör", "vapur", "teleferik",
-] as const;
-const MEDIUM_ACTIONS = [
-  "gizli harita arıyor", "köprü inşa ediyor", "fırtınayla savaşıyor", "yanlış kapıyı açıyor", "yarış kazanıyor",
-  "laboratuvarda deney yapıyor", "hazineyi saklıyor", "kendi heykelini yapıyor", "gökyüzünü boyuyor", "robot tamir ediyor",
-  "dev bir sandviç hazırlıyor", "gizemli mektup okuyor", "gölgesinden kaçıyor", "buzdan ev yapıyor", "uzaylıyla tanışıyor",
-  "orkestra yönetiyor", "sihirli anahtar buluyor", "kaybolmuş treni durduruyor", "zamanı geri sarıyor", "hayaletle pazarlık yapıyor",
-  "görünmez olmaya çalışıyor", "uçurtmayla yolculuk ediyor", "kayıp tacı buluyor", "rüyasında maraton koşuyor", "fenerle mağara geziyor",
-] as const;
-const MEDIUM_PLACES = [
-  "terk edilmiş istasyonda", "uzay üssünde", "antik tapınakta", "buz mağarasında", "kalabalık pazarda", "denizin dibinde",
-  "saat kulesinde", "gizli laboratuvarda", "uçan adada", "masal ormanında", "çölün ortasında", "müzenin çatısında",
-  "fırtınalı limanda", "yeraltı şehrinde", "dev bir kütüphanede",
+  "denizaltı", "zeplin", "teleferik", "vapur", "lokomotif", "ambulans", "buldozer", "karavan", "gondol", "planör",
+  "bukalemun", "ahtapot", "panda", "dinozor", "baykuş", "kirpi", "rakun", "deve", "koala", "flamingo",
+  "mikroskop", "teleskop", "pusula", "gramofon", "daktilo", "vantilatör", "dürbün", "megafon", "projektör", "jeneratör",
+  "labirent", "yanardağ", "şelale", "buzdağı", "mağara", "vaha", "tapınak", "piramit", "deniz-feneri", "saat-kulesi",
+  "hazine-sandığı", "zaman-makinesi", "uçan-halı", "perili-ev", "satranç-taşı", "müzik-kutusu", "kar-küresi", "oyuncak-tren", "rüzgâr-gülü", "asma-köprü",
+  "akrobat", "balet", "cambaz", "marangoz", "terzi", "kaptan", "pilot", "dalgıç", "madenci", "çiftçi",
+  "denizatı", "kılıçbalığı", "ornitorenk", "karınca", "yusufçuk", "papağan", "pelikan", "kanguru", "goril", "gergedan",
+  "mancınık", "yel-değirmeni", "kum-saati", "ateş-kulesi", "göktaşı", "uydu", "kapsül", "paraşüt", "hamak", "salıncak",
+  "orkestra", "lunapark", "karnaval", "tiyatro", "stadyum", "kütüphane", "müze", "laboratuvar", "gözlemevi", "tersane",
 ] as const;
 
 const HARD_SUBJECTS = [
-  "paradoks", "yerçekimi", "metamorfoz", "hologram", "labirent", "güneş tutulması", "rönesans", "demokrasi", "enflasyon", "arkeoloji",
-  "biyolüminesans", "kara delik", "kuantum bilgisayarı", "yapay zekâ", "sismograf", "ekosistem", "fotosentez", "DNA sarmalı", "buzul çağı", "meteor yağmuru",
-  "Truva atı", "İpek Yolu", "Rosetta Taşı", "Ayasofya", "Göbeklitepe", "Mona Lisa", "matruşka", "origami", "kaleydoskop", "metronom",
-  "satranç matı", "domino etkisi", "bumerang", "gölge oyunu", "optik illüzyon", "pusula gülü", "zaman kapsülü", "şifre makinesi", "rüzgâr türbini", "denizaltı volkanı",
-] as const;
-const HARD_ACTIONS = [
-  "neden-sonuç ilişkisini bozuyor", "iki farklı zamanı birleştiriyor", "kendi kopyasıyla tartışıyor", "imkânsız bir köprü kuruyor",
-  "görünmeyen bir kuvveti ölçüyor", "tarihi yeniden yazıyor", "ışığı kavanoza hapsediyor", "ses dalgalarıyla kapı açıyor",
-  "bir medeniyeti keşfediyor", "hafızasını haritaya dönüştürüyor", "gezegenlerin yerini değiştiriyor", "rüyaları arşivliyor",
-  "gelecekten mesaj alıyor", "sonsuz merdiveni çıkıyor", "zaman döngüsünü kırıyor", "gölgesine yön tarif ediyor",
-  "fırtınayı matematikle durduruyor", "kaybolan rengi arıyor", "yerçekimini tersine çeviriyor", "haritadaki ülkeyi katlıyor",
-  "aynı anda iki yerde bulunuyor", "sıfırdan bir alfabe kuruyor", "duyguları terazide tartıyor", "geçmişe fotoğraf gönderiyor", "sessizliği kaydediyor",
-] as const;
-const HARD_CONTEXTS = [
-  "tek çizgi kullanarak", "ayna görüntüsüyle", "kuş bakışı", "yalnızca geometrik şekillerle", "zaman tükenirken",
-  "ters perspektifte", "minyatür bir dünyada", "devlerin gözünden", "bir gazete manşeti gibi", "antik bir duvar resmi olarak",
-  "bilim kurgu afişinde", "müze vitrini içinde", "rüya ile gerçek arasında", "harita biçiminde", "siluet halinde",
+  "paradoks", "yerçekimi", "metamorfoz", "hologram", "rönesans", "demokrasi", "enflasyon", "arkeoloji", "biyolüminesans", "ekosistem",
+  "fotosentez", "sismograf", "matruşka", "origami", "kaleydoskop", "metronom", "bumerang", "perspektif", "simetri", "yansıma",
+  "kara-delik", "kuantum-bilgisayarı", "yapay-zekâ", "DNA-sarmalı", "buzul-çağı", "meteor-yağmuru", "güneş-tutulması", "domino-etkisi", "optik-illüzyon", "zaman-kapsülü",
+  "Truva-atı", "İpek-Yolu", "Rosetta-Taşı", "Mona-Lisa", "Göbeklitepe", "Ayasofya", "Babil-Kulesi", "Tac-Mahal", "Stonehenge", "Kolezyum",
+  "şifre-makinesi", "rüzgâr-türbini", "denizaltı-volkanı", "pusula-gülü", "gölge-oyunu", "satranç-matı", "sonsuz-merdiven", "Mobius-şeridi", "ses-dalgası", "ışık-prizması",
+  "galaksi", "takımyıldız", "nebula", "yörünge", "atmosfer", "kromozom", "molekül", "atom", "fosil", "manyetizma",
+  "adalet", "özgürlük", "sabır", "hafıza", "vicdan", "hayal", "zaman", "sessizlik", "tesadüf", "denge",
+  "mimari", "astronomi", "mitoloji", "felsefe", "geometri", "kronoloji", "topoğrafya", "koreografi", "orkestrasyon", "kriptografi",
+  "mühür", "parşömen", "obelisk", "mozaik", "fresk", "heykel", "amfitiyatro", "rasathane", "takvim", "harita",
+  "solucan-deliği", "zaman-döngüsü", "paralel-evren", "kayıp-kıta", "yüzen-şehir", "yeraltı-şehri", "uzay-istasyonu", "antik-makine", "enerji-kalkanı", "robot-ordusu",
 ] as const;
 
 const APOCALYPSE_SUBJECTS = [
-  "son çalışan tost makinesi", "Mars'taki belediye başkanı", "zombi muhasebeciler", "robot dinozor sürüsü", "kıyamet sonrası kargo görevlisi",
-  "Ay'ı çalan dev kedi", "zamanda kaybolan dolmuş", "uzaylı apartman yöneticisi", "volkanın içindeki market", "dünyanın son çaycısı",
-  "meteor avcısı penguen", "kara deliğe park eden minibüs", "nükleer kışta dondurmacı", "şehir büyüklüğünde ördek", "alarm veren piramit",
-  "gezegen yiyen elektrik süpürgesi", "mutant çiçek ordusu", "güneşi şarj eden teknisyen", "zombi düğün konvoyu", "son internet paketini arayan astronot",
-  "lav üstünde kamp yapan aile", "kıyamet sireni çalan horoz", "yerçekimsiz pazarcı", "dünyayı sırtlayan kaplumbağa", "meteor yağmurunda piknikçi",
-  "buz çağında klima satıcısı", "uzay boşluğunda simitçi", "kaçan yapay zekâ", "Ay'a taşınan mahalle", "dinozorlarla toplantı yapan patron",
-  "gezegeni tamir eden çocuk", "zaman makinesini kaçıran yolcu", "kıyamet gününde sınava giren öğrenci", "robotların son orkestrası", "gökdelen taşıyan karınca",
-  "yanardağda çay demleyen ejderha", "uyduları kovalayan köpek", "son ağacı koruyan şövalye", "dünyanın fişini çeken bebek", "uzaylı istilasında trafik polisi",
-] as const;
-const APOCALYPSE_ACTIONS = [
-  "insanlığı kurtarmaya çalışıyor", "yanlış düğmeye basıyor", "son bileti kapmaya çalışıyor", "acil durum toplantısı yapıyor", "kaçış planını kaybediyor",
-  "gezegeni bantla onarıyor", "meteorla pazarlık ediyor", "zamanı beş dakika erteliyor", "son pizzayı paylaşıyor", "gizli sığınağı arıyor",
-  "uzay gemisini iterek çalıştırıyor", "kıyameti canlı yayınlıyor", "robotlara halay öğretiyor", "Ay'a merdiven dayıyor", "yanardağı söndürmeye üflüyor",
-  "dünyayı yeniden başlatıyor", "son şarj aletini koruyor", "geleceğe kargo gönderiyor", "meteorları raketle geri yolluyor", "uzaylılara yol tarifi veriyor",
-  "zombilere CV hazırlıyor", "kara deliği tıkıyor", "gezegeni yanlış adrese teslim ediyor", "son otobüsü kaçırıyor", "kıyameti takvime yanlış yazıyor",
-] as const;
-const APOCALYPSE_CONTEXTS = [
-  "sireni çalarken", "son on saniyede", "şehir tahliye edilirken", "Ay ikiye bölünmüşken", "elektrikler kesilmişken",
-  "robotlar isyan etmişken", "yerçekimi durmuşken", "okyanuslar yükselirken", "gökyüzü yeşile dönmüşken", "zaman geriye akarken",
-  "herkes donmuşken", "gezegen küçülürken", "uydular düşerken", "güneş sönerken", "haritalar değişirken",
+  "zombi", "meteor", "yanardağ", "kıyamet", "sığınak", "mutant", "uzaylı", "robot", "dinozor", "ejderha",
+  "kara-delik", "nükleer-kış", "meteor-yağmuru", "zombi-ordusu", "robot-sürüsü", "uzaylı-filotu", "lav-nehri", "kum-fırtınası", "buz-çağı", "güneş-patlaması",
+  "tost-makinesi", "belediye-başkanı", "kargo-görevlisi", "apartman-yöneticisi", "trafik-polisi", "klima-satıcısı", "internet-paketi", "şarj-aleti", "kaçış-planı", "acil-toplantı",
+  "uzay-gemisi", "zaman-makinesi", "son-otobüs", "son-pizza", "son-ağaç", "son-çaycı", "son-dondurmacı", "son-simitçi", "son-orkestra", "son-market",
+  "dev-kedi", "dev-ördek", "dev-karınca", "dev-kaplumbağa", "dev-süpürge", "mutant-çiçek", "zombi-muhasebeci", "robot-penguen", "astronot-öğrenci", "ejderha-teknisyen",
+  "uydu", "gezegen", "dünya", "Mars", "Ay", "Güneş", "roket", "kapsül", "istasyon", "koloni",
+  "alarm", "siren", "jeneratör", "barikat", "gaz-maskesi", "konserve", "telsiz", "harita", "pusula", "meşale",
+  "enkaz", "krater", "buzul", "çöl", "bataklık", "laboratuvar", "fabrika", "gökdelen", "köprü", "tünel",
+  "kahraman", "kaçak", "mühendis", "tamirci", "pilot", "doktor", "kurye", "pazarcı", "çaycı", "piknikçi",
+  "zaman-kapısı", "enerji-kalkanı", "savunma-kulesi", "yeraltı-sığınağı", "uçan-mahalle", "kayıp-uydu", "kaçan-yapay-zekâ", "gezegen-motoru", "kıyamet-takvimi", "dünya-fişi",
 ] as const;
 
 const FUNNY_SUBJECTS = [
-  "köpek balığı", "zürafa", "penguen", "kapibara", "ahtapot", "tavuk", "inek", "keçi", "panda", "rakun",
-  "huysuz kedi", "şaşkın köpek", "dansçı fil", "uykulu aslan", "gözlüklü kurbağa", "bıyıklı balık", "kravatlı lama", "pelerinli tavşan", "şapkalı timsah", "patenci ördek",
-  "emekli korsan", "unutkan sihirbaz", "acemi astronot", "neşeli vampir", "vegan zombi", "utangaç ejderha", "kibar dev", "aceleci şövalye", "rapçi dede", "oyuncu nine",
-  "konuşan tost", "kaçan terlik", "sinirli çaydanlık", "romantik buzdolabı", "dedikoducu telefon", "dans eden masa", "üzgün lamba", "meraklı çorap", "kahraman patates", "şarkıcı soğan",
-] as const;
-const FUNNY_ACTIONS = [
-  "süpürge tutuyor", "selfie çekiyor", "halay çekiyor", "trafik cezası yazıyor", "pilates yapıyor", "dondurma satıyor", "kaykay sürüyor",
-  "internetten yemek söylüyor", "saçını tarıyor", "çorap arıyor", "iş görüşmesine gidiyor", "düğünde pasta kaçırıyor", "gizlice dans ediyor",
-  "yanlış otobüse biniyor", "mikrofonda türkü söylüyor", "kahvaltı hazırlıyor", "uçurtmaya tutunuyor", "komşudan şeker istiyor",
-  "asansörde kalıyor", "pazar çantası taşıyor", "çamaşır asıyor", "yoga yapıyor", "pizza kuryeliği yapıyor", "sınavda kopya çekiyor",
-  "sakız balonu şişiriyor", "uzaylıya çay ikram ediyor", "kardan adama güneş kremi sürüyor", "balık tutarken balığa yakalanıyor",
-  "robotla tavla oynuyor", "gölgesine kızıyor", "dişçiden kaçıyor", "şemsiye yerine makarna açıyor", "telefonda annesiyle konuşuyor",
-  "gizli ajan gibi yürüyor", "market arabasıyla yarışıyor", "kendi heykeline poz veriyor", "yanlışlıkla belediye başkanı oluyor",
-  "pastanın içine saklanıyor", "davul çalarken uyuyor", "kediye matematik öğretiyor",
-] as const;
-const FUNNY_CONTEXTS = [
-  "düğünde", "uzayda", "otobüs durağında", "banyoda", "müdür odasında", "Ay'ın üstünde", "süpermarkette", "trafikte",
-  "lunaparkta", "aile toplantısında", "canlı yayında", "sınav salonunda", "spor salonunda", "dondurucuda", "apartman toplantısında",
+  "köpekbalığı", "zürafa", "penguen", "kapibara", "ahtapot", "tavuk", "inek", "keçi", "panda", "rakun",
+  "kedi", "köpek", "fil", "aslan", "kurbağa", "balık", "lama", "tavşan", "timsah", "ördek",
+  "korsan", "sihirbaz", "astronot", "vampir", "zombi", "ejderha", "dev", "şövalye", "dede", "nine",
+  "tost", "terlik", "çaydanlık", "buzdolabı", "telefon", "masa", "lamba", "çorap", "patates", "soğan",
+  "süpürge", "makarna", "turşu", "mayonez", "kavun", "lahana", "simit", "köfte", "mantı", "baklava",
+  "belediye-başkanı", "trafik-polisi", "pizza-kuryesi", "matematik-öğretmeni", "düğün-fotoğrafçısı", "apartman-görevlisi", "otobüs-şoförü", "haber-spikeri", "mahalle-muhtarı", "internet-fenomeni",
+  "market-arabası", "pazar-çantası", "sakız-balonu", "güneş-kremi", "çamaşır-makinesi", "asansör", "davul", "mikrofon", "uçurtma", "kaykay",
+  "tavla", "selfie", "pilates", "halay", "karaoke", "piknik", "düğün", "sınav", "toplantı", "tatil",
+  "uzaylı", "hayalet", "mumya", "tekboynuz", "denizkızı", "cüce", "peri", "canavar", "robot", "dinozor",
+  "dişçi", "berber", "kasiyer", "hakem", "garson", "müdür", "komşu", "turist", "dedektif", "bodyguard",
 ] as const;
 
-const CONFIG = {
-  easy: [EASY_SUBJECTS, EASY_ACTIONS, EASY_PLACES],
-  medium: [MEDIUM_SUBJECTS, MEDIUM_ACTIONS, MEDIUM_PLACES],
-  hard: [HARD_SUBJECTS, HARD_ACTIONS, HARD_CONTEXTS],
-  apocalypse: [APOCALYPSE_SUBJECTS, APOCALYPSE_ACTIONS, APOCALYPSE_CONTEXTS],
-  funny: [FUNNY_SUBJECTS, FUNNY_ACTIONS, FUNNY_CONTEXTS],
-} as const;
+const SUBJECTS: Record<Difficulty, readonly string[]> = {
+  easy: EASY_SUBJECTS,
+  medium: MEDIUM_SUBJECTS,
+  hard: HARD_SUBJECTS,
+  apocalypse: APOCALYPSE_SUBJECTS,
+  funny: FUNNY_SUBJECTS,
+};
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   easy: "Kolay", medium: "Orta", hard: "Zor", apocalypse: "Kıyamet", funny: "Komik",
 };
 
+function validateTokens(label: string, values: readonly string[]): void {
+  if (new Set(values).size !== values.length || values.some((value) => !value || /\s/.test(value))) {
+    throw new Error(`${label} havuzunda boşluk, boş değer veya mükerrer kayıt var.`);
+  }
+}
+
+validateTokens("Niteleyici", MODIFIERS);
+for (const difficulty of Object.keys(SUBJECTS) as Difficulty[]) validateTokens(DIFFICULTY_LABELS[difficulty], SUBJECTS[difficulty]);
+
 export function wordPoolSize(difficulty: Difficulty): number {
-  const [subjects, actions, contexts] = CONFIG[difficulty];
-  return subjects.length * actions.length * contexts.length;
+  return MODIFIERS.length * SUBJECTS[difficulty].length;
 }
 
 export function wordAt(difficulty: Difficulty, index: number): string {
-  const [subjects, actions, contexts] = CONFIG[difficulty];
-  const safe = ((index % wordPoolSize(difficulty)) + wordPoolSize(difficulty)) % wordPoolSize(difficulty);
-  const subject = subjects[safe % subjects.length];
-  const action = actions[Math.floor(safe / subjects.length) % actions.length];
-  const context = contexts[Math.floor(safe / (subjects.length * actions.length)) % contexts.length];
-  return `${subject} ${action} ${context}`;
+  const subjects = SUBJECTS[difficulty];
+  const size = wordPoolSize(difficulty);
+  const safe = ((index % size) + size) % size;
+  const modifier = MODIFIERS[safe % MODIFIERS.length];
+  const subject = subjects[Math.floor(safe / MODIFIERS.length) % subjects.length];
+  return `${modifier} ${subject}`;
 }
 
 export function pickUniqueWord(difficulty: Difficulty, used: string[]): string {
